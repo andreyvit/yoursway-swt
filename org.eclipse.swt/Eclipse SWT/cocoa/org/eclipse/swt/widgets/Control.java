@@ -1462,16 +1462,22 @@ boolean setInputState (Event event, NSEvent nsEvent, int type) {
 	if ((modifierFlags & OS.NSControlKeyMask) != 0) event.stateMask |= SWT.CONTROL;
 	if ((modifierFlags & OS.NSCommandKeyMask) != 0) event.stateMask |= SWT.COMMAND;
 	
-	//WRONG
-	if ((modifierFlags & OS.NSLeftMouseDownMask) != 0) event.stateMask |= SWT.BUTTON1;
-	if ((modifierFlags & OS.NSLeftMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON1;
-	if ((modifierFlags & OS.NSLeftMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
-	if ((modifierFlags & OS.NSOtherMouseDownMask) != 0) event.stateMask |= SWT.BUTTON2;
-	if ((modifierFlags & OS.NSOtherMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON2;
-	if ((modifierFlags & OS.NSOtherMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
-	if ((modifierFlags & OS.NSRightMouseDownMask) != 0) event.stateMask |= SWT.BUTTON3;
-	if ((modifierFlags & OS.NSRightMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON3;
-	if ((modifierFlags & OS.NSRightMouseUpMask) != 0) event.stateMask |= SWT.BUTTON3;
+	switch (type) {
+	case SWT.MouseDown:
+	case SWT.MouseDoubleClick:
+	case SWT.MouseUp:
+		int buttonMask = nsEvent.buttonMask();
+		if ((buttonMask & OS.NSLeftMouseDownMask) != 0) event.stateMask |= SWT.BUTTON1;
+		if ((buttonMask & OS.NSLeftMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON1;
+		if ((buttonMask & OS.NSLeftMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
+		if ((buttonMask & OS.NSOtherMouseDownMask) != 0) event.stateMask |= SWT.BUTTON2;
+		if ((buttonMask & OS.NSOtherMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON2;
+		if ((buttonMask & OS.NSOtherMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
+		if ((buttonMask & OS.NSRightMouseDownMask) != 0) event.stateMask |= SWT.BUTTON3;
+		if ((buttonMask & OS.NSRightMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON3;
+		if ((buttonMask & OS.NSRightMouseUpMask) != 0) event.stateMask |= SWT.BUTTON3;
+		break;
+	}		
 	
 //	if (OS.GetKeyState (OS.VK_XBUTTON1) < 0) event.stateMask |= SWT.BUTTON4;
 //	if (OS.GetKeyState (OS.VK_XBUTTON2) < 0) event.stateMask |= SWT.BUTTON5;
