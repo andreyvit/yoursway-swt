@@ -1,0 +1,16 @@
+/ByteArrayTransfer.java/1.23/Tue May  9 19:47:07 2006//
+/Clipboard.java/1.36/Thu May 31 22:04:17 2007//
+/DragSource.java/1.48/Thu Jan 31 23:56:28 2008//
+/DropTarget.java/1.46/Thu Jan 31 23:56:28 2008//
+/FileTransfer.java/1.20/Thu May 31 22:04:17 2007//
+/HTMLTransfer.java/1.10/Thu May 31 22:04:17 2007//
+/ImageTransfer.java/1.1/Tue Oct 30 21:36:50 2007//
+/RTFTransfer.java/1.18/Tue May  9 19:47:07 2006//
+/TableDragSourceEffect.java/1.2/Thu May 31 20:34:11 2007//
+/TableDropTargetEffect.java/1.4/Thu Jan 31 00:16:51 2008//
+/TextTransfer.java/1.24/Thu May 31 22:04:17 2007//
+/Transfer.java/1.20/Thu May 31 22:04:17 2007//
+/TransferData.java/1.18/Tue May  9 19:47:07 2006//
+/TreeDragSourceEffect.java/1.2/Thu May 31 20:34:11 2007//
+/TreeDropTargetEffect.java/1.6/Fri Feb  1 22:10:59 2008//
+/URLTransfer.java/1.2/Mon Nov 19 23:24:25 2007//
