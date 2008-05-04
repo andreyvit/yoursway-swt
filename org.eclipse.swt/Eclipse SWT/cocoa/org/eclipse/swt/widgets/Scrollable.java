@@ -263,7 +263,7 @@ void sendHorizontalSelection () {
 }
 
 boolean scrollBar(ScrollBar bar, float delta) {
-	if (bar.getEnabled() && Math.abs(delta) > 1e-5) {
+	if (bar != null && bar.getEnabled() && Math.abs(delta) > 1e-5) {
 		bar.setSelection(Math.max(0, bar.getSelection()
 				- (int) (bar.getIncrement() * delta)));
 		Event event = new Event();
