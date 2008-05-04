@@ -12,6 +12,7 @@ public class Drawer extends Composite {
 	private final NSSize size;
 	private final int edge;
 
+
 	public Drawer(Shell shell, NSSize size, int edge) {
 		super ();
 		this.shell = shell;
@@ -27,6 +28,9 @@ public class Drawer extends Composite {
 		return shell;
 	}		
 	
+	public void toggle() {
+		drawer.toggle(null);
+	}
 	
 	public void open() {
 		drawer.open();
