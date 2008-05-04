@@ -1637,6 +1637,7 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_mouseDragged_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_mouseEntered_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_mouseUp_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_scrollWheel_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_acceptsFirstResponder, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_resignFirstResponder, proc2, "@:");
@@ -3156,6 +3157,8 @@ int windowDelegateProc(int id, int sel, int arg0) {
 		widget.mouseDragged(arg0);
 	} else if (sel == OS.sel_mouseUp_1) {
 		widget.mouseUp(arg0);
+	} else if (sel == OS.sel_scrollWheel_1) {
+		widget.scrollWheel(arg0);
 	} else if (sel == OS.sel_mouseEntered_1) {
 		widget.mouseEntered(arg0);
 	} else if (sel == OS.sel_flagsChanged_1) {

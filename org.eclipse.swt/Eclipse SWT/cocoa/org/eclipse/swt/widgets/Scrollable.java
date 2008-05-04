@@ -262,17 +262,24 @@ void sendHorizontalSelection () {
 	horizontalBar.sendSelection ();
 }
 
-boolean sendMouseWheel (short wheelAxis, int wheelDelta) {
-//	if ((state & CANVAS) != 0) {
-//		ScrollBar bar = wheelAxis == OS.kEventMouseWheelAxisX ? horizontalBar : verticalBar;
-//		if (bar != null && bar.getEnabled ()) {
-//			bar.setSelection (Math.max (0, bar.getSelection () - bar.getIncrement () * wheelDelta));
-//			Event event = new Event ();
-//		    event.detail = wheelDelta > 0 ? SWT.PAGE_UP : SWT.PAGE_DOWN;	
-//			bar.sendEvent (SWT.Selection, event);
-//			return true;
-//		}
-//	}
+boolean scrollBar(ScrollBar bar, float delta) {
+	if (bar.getEnabled() && Math.abs(delta) > 1e-5) {
+		bar.setSelection(Math.max(0, bar.getSelection()
+				- (int) (bar.getIncrement() * delta)));
+		Event event = new Event();
+		event.detail = delta > 0 ? SWT.PAGE_UP : SWT.PAGE_DOWN;
+		bar.sendEvent(SWT.Selection, event);
+		return true;
+	}
+	return false;
+}
+
+boolean sendMouseWheel (float deltaX, float deltaY) {
+	if ((state & CANVAS) != 0) {
+		boolean b = scrollBar(horizontalBar, deltaX);
+		b |= scrollBar(verticalBar, deltaY);
+		return b;
+	}
 	return false;
 }
 

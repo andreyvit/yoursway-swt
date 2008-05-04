@@ -908,6 +908,20 @@ boolean sendKeyEvent (int type, Event event) {
 	return event.doit;
 }
 
+boolean sendMouseEvent (int type, Event event) {
+	sendEvent (type, event);
+	// widget could be disposed at this point
+	
+	/*
+	 * It is possible (but unlikely), that application
+	 * code could have disposed the widget in the key
+	 * events.  If this happens, end the processing of
+	 * the key by returning false.
+	 */
+	if (isDisposed ()) return false;
+	return event.doit;
+}
+
 void sendDoubleSelection() {
 }
 
@@ -1259,6 +1273,9 @@ boolean windowShouldClose(int window) {
 }
 
 void windowWillClose(int notification) {
+}
+
+void scrollWheel(int notification) {
 }
 
 }

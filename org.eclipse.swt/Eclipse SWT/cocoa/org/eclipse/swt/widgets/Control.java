@@ -1512,17 +1512,22 @@ boolean setInputState (Event event, NSEvent nsEvent, int type) {
 	return true;
 }
 
-void sendMouseEvent (NSEvent nsEvent, int type, int button) {
+boolean sendMouseEvent (NSEvent nsEvent, int type, int button) {
+	return sendMouseEvent(nsEvent, type, button, nsEvent.clickCount());
+}
+
+boolean sendMouseEvent (NSEvent nsEvent, int type, int button, int count) {
 	Event event = new Event ();
 	event.button = button;
 //	event.detail = detail;
-	event.count = nsEvent.clickCount();
+	event.count = count;
 	NSPoint location = nsEvent.locationInWindow();
 	NSPoint point = view.convertPoint_fromView_(location, null);
 	event.x = (int) point.x;
 	event.y = (int) point.y;
 	setInputState (event, nsEvent, type);
 	sendEvent (type, event);
+	return event.doit;
 }
 
 void mouseDown(int theEvent) {
@@ -2169,51 +2174,7 @@ void sendFocusEvent (int type, boolean post) {
 //	display.focusControl = null;
 }
 
-boolean sendMouseEvent (int type, short button, int count, int detail, boolean send, int theEvent) {
-//	CGPoint pt = new CGPoint ();
-//	OS.GetEventParameter (theEvent, OS.kEventParamWindowMouseLocation, OS.typeHIPoint, null, CGPoint.sizeof, null, pt);
-//	OS.HIViewConvertPoint (pt, 0, handle);
-//	int x = (int) pt.x;
-//	int y = (int) pt.y;
-//	display.lastX = x;
-//	display.lastY = y;
-//	int [] chord = new int [1];
-//	OS.GetEventParameter (theEvent, OS.kEventParamMouseChord, OS.typeUInt32, null, 4, null, chord);
-//	int [] modifiers = new int [1];
-//	OS.GetEventParameter (theEvent, OS.kEventParamKeyModifiers, OS.typeUInt32, null, 4, null, modifiers);
-//	return sendMouseEvent (type, button, count, detail, send, chord [0], (short) x, (short) y, modifiers [0]);
-	return false;
-}
-
-boolean sendMouseEvent (int type, short button, int count, boolean send, int chord, short x, short y, int modifiers) {
-	return sendMouseEvent (type, button, count, 0, send, chord, x, y, modifiers);
-}
-
-boolean sendMouseEvent (int type, short button, int count, int detail, boolean send, int chord, short x, short y, int modifiers) {
-	if (!hooks (type) && !filters (type)) return true;
-	Event event = new Event ();
-	switch (button) {
-		case 1: event.button = 1; break;
-		case 2: event.button = 3; break;
-		case 3: event.button = 2; break;
-		case 4: event.button = 4; break;
-		case 5: event.button = 5; break;
-	}
-	event.x = x;
-	event.y = y;
-	event.count = count;
-	event.detail = detail;
-	setInputState (event, type, chord, modifiers);
-	if (send) {
-		sendEvent (type, event);
-		if (isDisposed ()) return false;
-	} else {
-		postEvent (type, event);
-	}
-	return event.doit;
-}
-
-boolean sendMouseWheel (short wheelAxis, int wheelDelta) {
+boolean sendMouseWheel (float deltaX, float deltaY) {
 	return false;
 }
 
@@ -3252,6 +3213,23 @@ void updateBackgroundMode () {
 
 void updateLayout (boolean all) {
 	/* Do nothing */
+}
+
+void scrollWheel(int notification) {
+	NSEvent event = new NSEvent(notification);
+	float deltaX = event.deltaX();
+	float deltaY = event.deltaY();
+	Shell shell = getShell ();
+	Control control = this;
+	while (control != null) {
+		if (!control.sendMouseEvent (event, SWT.MouseWheel, 0, (int)(deltaY))) {
+			break;
+		}
+		if (control.sendMouseWheel (deltaX, deltaY)) break;
+		
+		if (control == shell) break;
+		control = control.parent;
+	}
 }
 
 }
