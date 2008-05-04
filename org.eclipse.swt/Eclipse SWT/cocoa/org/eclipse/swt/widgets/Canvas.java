@@ -317,4 +317,9 @@ public void setIME (IME ime) {
 	this.ime = ime;
 }
 
+boolean sendKeyEvent(NSEvent nsEvent, int type) {
+	super.sendKeyEvent(nsEvent, type);
+	return false;
+}
+
 }
