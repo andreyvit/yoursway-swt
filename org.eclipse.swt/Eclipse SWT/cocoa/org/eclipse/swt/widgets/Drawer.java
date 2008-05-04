@@ -5,7 +5,7 @@ import org.eclipse.swt.internal.cocoa.NSDrawer;
 import org.eclipse.swt.internal.cocoa.NSRect;
 import org.eclipse.swt.internal.cocoa.NSSize;
 
-public class Drawer extends Shell {	
+public class Drawer extends Composite {	
 
 	public NSDrawer drawer;
 	private final Shell shell;
@@ -15,15 +15,18 @@ public class Drawer extends Shell {
 	public Drawer(Shell shell, NSSize size, int edge) {
 		super ();
 		this.shell = shell;
+		this.parent = shell;
 		this.size = size;
 		this.edge = edge;		
 		this.display = shell.getDisplay();
 		createWidget();
 	}
 	
+
 	public Shell getShell() {
-		return this;
-	}	
+		return shell;
+	}		
+	
 	
 	public void open() {
 		drawer.open();
@@ -39,7 +42,6 @@ public class Drawer extends Shell {
 		NSRect size = drawer.contentView().frame();			
 		return new Rectangle (0, 0, (int)size.width, (int)size.height);
 	}
-
 
 	void createHandle() {
 		// since the constructor calls super() first, this method
