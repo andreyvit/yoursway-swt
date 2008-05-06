@@ -956,7 +956,7 @@ int setBounds (int x, int y, int width, int height, boolean move, boolean resize
 		rect.x = x;
 		//TODO - get the screen for the point
 		int screenHeight = (int) window.screen().frame().height;
-		rect.y = screenHeight - y;
+		rect.y = y;//screenHeight - y;
 		rect.width = width;
 		rect.height = height;
 		window.setFrame_display_(rect, false);
