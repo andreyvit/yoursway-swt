@@ -28,9 +28,9 @@ public void addObserver_toObjectsAtIndexes_forKeyPath_options_context_(NSObject 
 	OS.objc_msgSend(this.id, OS.sel_addObserver_1toObjectsAtIndexes_1forKeyPath_1options_1context_1, observer != null ? observer.id : 0, indexes != null ? indexes.id : 0, keyPath != null ? keyPath.id : 0, options, context);
 }
 
-public static id array() {
+public static NSArray array() {
 	int result = OS.objc_msgSend(OS.class_NSArray, OS.sel_array);
-	return result != 0 ? new id(result) : null;
+	return result != 0 ? new NSArray(result) : null;
 }
 
 public NSArray arrayByAddingObject(id anObject) {
@@ -43,24 +43,24 @@ public NSArray arrayByAddingObjectsFromArray(NSArray otherArray) {
 	return result == this.id ? this : (result != 0 ? new NSArray(result) : null);
 }
 
-public static id arrayWithArray(NSArray array) {
+public static NSArray arrayWithArray(NSArray array) {
 	int result = OS.objc_msgSend(OS.class_NSArray, OS.sel_arrayWithArray_1, array != null ? array.id : 0);
-	return result != 0 ? new id(result) : null;
+	return result != 0 ? new NSArray(result) : null;
 }
 
-public static id arrayWithContentsOfFile(NSString path) {
+public static NSArray arrayWithContentsOfFile(NSString path) {
 	int result = OS.objc_msgSend(OS.class_NSArray, OS.sel_arrayWithContentsOfFile_1, path != null ? path.id : 0);
-	return result != 0 ? new id(result) : null;
+	return result != 0 ? new NSArray(result) : null;
 }
 
-public static id arrayWithContentsOfURL(NSURL url) {
+public static NSArray arrayWithContentsOfURL(NSURL url) {
 	int result = OS.objc_msgSend(OS.class_NSArray, OS.sel_arrayWithContentsOfURL_1, url != null ? url.id : 0);
-	return result != 0 ? new id(result) : null;
+	return result != 0 ? new NSArray(result) : null;
 }
 
-public static id arrayWithObject(id anObject) {
+public static NSArray arrayWithObject(id anObject) {
 	int result = OS.objc_msgSend(OS.class_NSArray, OS.sel_arrayWithObject_1, anObject != null ? anObject.id : 0);
-	return result != 0 ? new id(result) : null;
+	return result != 0 ? new NSArray(result) : null;
 }
 
 public static id static_arrayWithObjects_(id arrayWithObjects) {
