@@ -1278,4 +1278,10 @@ void windowWillClose(int notification) {
 void scrollWheel(int notification) {
 }
 
+int drawerWillResizeContents_toSize(int drawer, NSSize size) {
+	// in fact, this proc should return NSSize. but I have no idea 
+	// not to do that with current implementation	
+	return (int) size.width;
+}
+
 }

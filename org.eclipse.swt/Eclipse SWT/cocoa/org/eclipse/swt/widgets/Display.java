@@ -1571,7 +1571,7 @@ void initClasses () {
 	dialogCallback3 = new Callback(this, "dialogProc", 3);
 	int dialogProc3 = dialogCallback3.getAddress();
 	if (dialogProc3 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
-	
+
 	windowDelegateCallback3 = new Callback(this, "windowDelegateProc", 3);
 	int proc3 = windowDelegateCallback3.getAddress();
 	if (proc3 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
@@ -1610,6 +1610,14 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_windowWillClose_1, dialogProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_changeColor_1, dialogProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_changeFont_1, dialogProc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
+	OS.objc_registerClassPair(cls);
+	
+	className = "SWTDrawerDelegate";
+	cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
+	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addMethod(cls, OS.sel_drawerWillResizeContents_1toSize_1, proc4, "@:@");
 	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
 	OS.objc_registerClassPair(cls);
@@ -1810,6 +1818,13 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_sendEvent_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_flagsChanged_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_helpRequested_1, proc3, "@:@");
+	OS.objc_registerClassPair(cls);
+	
+	className = "SWTDrawer";
+	cls = OS.objc_allocateClassPair(OS.class_NSDrawer, className, 0);
+	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");	
 	OS.objc_registerClassPair(cls);
 }
 
@@ -3213,6 +3228,13 @@ int windowDelegateProc(int delegate, int sel, int arg0, int arg1) {
 		return widget.outlineView_shouldExpandItem(arg0, arg1) ? 1 : 0;
 	} else if (sel == OS.sel_menu_1willHighlightItem_1) {
 		widget.menu_willHighlightItem(arg0, arg1);
+	} else if (sel == OS.sel_drawerWillResizeContents_1toSize_1) {
+		NSPoint pt = new NSPoint();
+		OS.memmove(pt, arg0, NSPoint.sizeof);
+		NSSize size = new NSSize();
+		size.width = pt.x;
+		size.height = pt.y;
+		return widget.drawerWillResizeContents_toSize(arg0, size);
 	}
 	return 0;
 }

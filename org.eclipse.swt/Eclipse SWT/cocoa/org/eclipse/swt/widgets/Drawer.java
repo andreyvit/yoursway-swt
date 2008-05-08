@@ -1,16 +1,18 @@
 package org.eclipse.swt.widgets;
 
 import org.eclipse.swt.graphics.Rectangle;
-import org.eclipse.swt.internal.cocoa.NSDrawer;
 import org.eclipse.swt.internal.cocoa.NSRect;
 import org.eclipse.swt.internal.cocoa.NSSize;
+import org.eclipse.swt.internal.cocoa.SWTDrawer;
+import org.eclipse.swt.internal.cocoa.SWTDrawerDelegate;
 
 public class Drawer extends Composite {	
 
-	public NSDrawer drawer;
+	public SWTDrawer drawer;
 	private final Shell shell;
 	private final NSSize size;
 	private final int edge;
+	private SWTDrawerDelegate delegate;
 
 
 	public Drawer(Shell shell, NSSize size, int edge) {
@@ -23,7 +25,6 @@ public class Drawer extends Composite {
 		createWidget();
 	}
 	
-
 	public Shell getShell() {
 		return shell;
 	}		
@@ -33,8 +34,16 @@ public class Drawer extends Composite {
 	}
 	
 	public void open() {
-		drawer.open();
+		drawer.openOnEdge(edge);
 		layout();
+	}
+	
+	public void setMaxSize(NSSize size) {
+		drawer.setMaxContentSize(size);
+	}
+	
+	public void setMinSize(NSSize size) {
+		drawer.setMinContentSize(size);
 	}
 	
 	public void close() {
@@ -43,38 +52,38 @@ public class Drawer extends Composite {
 
 	public Rectangle getClientArea () {
 		checkWidget();
-		NSRect size = drawer.contentView().frame();			
+		NSRect size = drawer.contentView().frame();
 		return new Rectangle (0, 0, (int)size.width, (int)size.height);
 	}
 
-	void createHandle() {
-		// since the constructor calls super() first, this method
-		// will be called first time before inst. vars were initialized
-		if (size == null)
-			return;
-		
+	void createHandle() {	
 		if (drawer != null) {
 			view = drawer.contentView();
 			return;
 		} else {
-			drawer = (NSDrawer) (new NSDrawer()).alloc();
-			drawer.initWithContentSize(size, edge);
+			drawer = (SWTDrawer) ((SWTDrawer) new SWTDrawer().alloc()).initWithContentSize(size, edge);
+			drawer.setTag(jniRef);
 		}
-
 		createHandle(null);
-
+		
+		delegate = (SWTDrawerDelegate)new SWTDrawerDelegate().alloc().init();
+		delegate.setTag(jniRef);
+		drawer.setDelegate(delegate);
 		drawer.setContentView(topView());
-		drawer.setDelegate(drawer);
-		drawer.setParentWindow(shell.window);
+		drawer.setParentWindow(shell.window);		
 	}
 
 	void releaseHandle() {
-		super.releaseHandle();
-		if (drawer != null) {
-			drawer.setDelegate(null);
-			drawer.release();
-			drawer = null;
-		}
+		drawer.setDelegate(null);
+		if (delegate != null) delegate.release();
+		delegate = null;
+		super.releaseHandle ();
+		drawer = null;
 	}
 
+	int drawerWillResizeContents_toSize(int drawer, NSSize size) {
+		layout();
+		return super.drawerWillResizeContents_toSize(drawer, size);
+	}
+	
 }
