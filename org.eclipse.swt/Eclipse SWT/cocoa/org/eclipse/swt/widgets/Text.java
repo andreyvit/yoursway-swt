@@ -317,9 +317,11 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 public void copy () {
 	checkWidget ();
 	if ((style & SWT.SINGLE) != 0) {
-		
+		if ((style & SWT.SEARCH) != 0) {
+			((NSSearchField)view).currentEditor().copy(null);
+		}
 	} else {
-		((NSTextView)view).copy();
+		((NSTextView)view).copy(null);
 	}
 }
 
@@ -411,7 +413,9 @@ public void cut () {
 	checkWidget();
 	if ((style & SWT.READ_ONLY) != 0) return;
 	if ((style & SWT.SINGLE) != 0) {
-		
+		if ((style & SWT.SEARCH) != 0) {
+			((NSSearchField)view).currentEditor().cut(null);
+		}
 	} else {
 		((NSTextView)view).cut(null);
 	}
@@ -1006,6 +1010,9 @@ public void insert (String string) {
 public void paste () {
 	checkWidget();
 	if ((style & SWT.READ_ONLY) != 0) return;
+	if (view instanceof NSSearchField) {
+		((NSSearchField)view).currentEditor().paste(null);
+	}
 //	boolean paste = true;
 //	String oldText = null;
 //	if (hooks (SWT.Verify) || filters (SWT.Verify)) {
