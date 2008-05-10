@@ -11,8 +11,20 @@
 package org.eclipse.swt.dnd;
 
 
-import org.eclipse.swt.*;
-import org.eclipse.swt.widgets.*;
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.SWTError;
+import org.eclipse.swt.SWTException;
+import org.eclipse.swt.internal.cocoa.NSArray;
+import org.eclipse.swt.internal.cocoa.NSAutoreleasePool;
+import org.eclipse.swt.internal.cocoa.NSMutableArray;
+import org.eclipse.swt.internal.cocoa.NSMutableString;
+import org.eclipse.swt.internal.cocoa.NSNull;
+import org.eclipse.swt.internal.cocoa.NSObject;
+import org.eclipse.swt.internal.cocoa.NSPasteboard;
+import org.eclipse.swt.internal.cocoa.NSString;
+import org.eclipse.swt.internal.cocoa.OS;
+import org.eclipse.swt.internal.cocoa.id;
+import org.eclipse.swt.widgets.Display;
 
 /**
  * The <code>Clipboard</code> provides a mechanism for transferring data from one
@@ -218,7 +230,19 @@ public Object getContents(Transfer transfer, int clipboards) {
 	checkWidget();
 	if (transfer == null) DND.error(SWT.ERROR_NULL_ARGUMENT);
 	if (!(transfer instanceof TextTransfer)) return null;
-	return display.getData("TextTransfer"); //$NON-NLS-1$
+	
+	NSPasteboard generalPasteboard = NSPasteboard.generalPasteboard();
+	if (generalPasteboard == null)
+		DND.error(SWT.ERROR_UNSPECIFIED);
+	NSString stringPBoardType = NSString.stringWith("NSStringPboardType");
+	
+	generalPasteboard.types();
+	
+	NSString contents = generalPasteboard.stringForType(stringPBoardType);
+	char[] buffer = new char[contents.length()];
+	contents.getCharacters_(buffer);
+	
+	return new String(buffer);
 }
 
 /**
@@ -354,9 +378,19 @@ public void setContents(Object[] data, Transfer[] dataTypes, int clipboards) {
 		DND.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
 	
+	NSPasteboard generalPasteboard = NSPasteboard.generalPasteboard();
+	
+	if (generalPasteboard == null)
+		DND.error(SWT.ERROR_UNSPECIFIED);
+	
+	NSString stringPBoardType = NSString.stringWith("NSStringPboardType");
+	
+	generalPasteboard.declareTypes(NSArray.arrayWithObject(stringPBoardType), null);
+	
 	for (int i = 0; i < dataTypes.length; i++) {
 		if (dataTypes[i] instanceof TextTransfer && data[i] instanceof String){
-			display.setData("TextTransfer", data[i]); //$NON-NLS-1$
+			generalPasteboard.setString(NSString.stringWith((String) data[i]), 
+					stringPBoardType);
 			return;
 		}
 	}
