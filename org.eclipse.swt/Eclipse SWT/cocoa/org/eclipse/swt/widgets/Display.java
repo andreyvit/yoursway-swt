@@ -235,6 +235,8 @@ public class Display extends Device {
 	String [] keys;
 	Object [] values;
 	
+	boolean menuManagementDisabled;
+	
 	/*
 	* TEMPORARY CODE.  Install the runnable that
 	* gets the current display. This code will
@@ -2748,7 +2750,17 @@ public void setData (String key, Object value) {
 	values = newValues;
 }
 
+public void setApplicationMenuBar(Menu menu) {
+    menuManagementDisabled = true;
+    displayMenuBar(menu);
+}
+
+public NSApplication getApplication() {
+    return application;
+}
+
 void setMenuBar (Menu menu) {
+    if (menuManagementDisabled) return;
 	/*
 	* Feature in the Macintosh.  SetRootMenu() does not
 	* accept NULL to indicate that their should be no
@@ -2758,6 +2770,10 @@ void setMenuBar (Menu menu) {
 	*/
 	if (menu == menuBar) return;
 	menuBar = menu;
+	displayMenuBar(menu);
+}
+
+void displayMenuBar(Menu menu) {
 	//remove all existing menu items except the application menu
 	NSMenu menubar = application.mainMenu();
 	int count = menubar.numberOfItems();
