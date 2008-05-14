@@ -471,15 +471,16 @@ public void setIncrement (int value) {
  */
 public void setEnabled (boolean enabled) {
 	checkWidget();
-//	if (enabled) {
-//		if ((state & DISABLED) == 0) return;
-//		state &= ~DISABLED;
-//		OS.EnableControl (handle);
-//	} else {
-//		if ((state & DISABLED) != 0) return;
-//		state |= DISABLED;
-//		OS.DisableControl (handle);
-//	}
+	if (enabled) {
+		if ((state & DISABLED) == 0) return;
+		state &= ~DISABLED;
+		//OS.EnableControl (handle);
+	} else {
+		if ((state & DISABLED) != 0) return;
+		state |= DISABLED;
+		//OS.DisableControl (handle);
+	}
+	view.setEnabled(enabled);
 }
 
 /**
@@ -618,7 +619,9 @@ public void setValues (int selection, int minimum, int maximum, int thumb, int i
 	if (thumb < 1) return;
 	if (increment < 1) return;
 	if (pageIncrement < 1) return;
-	thumb = Math.min (thumb, maximum - minimum);
+	this.thumb = thumb = Math.min (thumb, maximum - minimum);
+	this.maximum = maximum;
+	this.minimum = minimum;
 	this.increment = increment;
 	this.pageIncrement = pageIncrement;
 	updateBar(selection, minimum, maximum, thumb);
