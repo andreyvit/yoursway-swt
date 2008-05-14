@@ -257,10 +257,12 @@ void mouseDragged(int theEvent) {
 	}
 }
 
-void mouseEntered(int theEvent) {
-	//TODO need to add tracking area
-	super.mouseEntered(theEvent);
-	sizeCursor.handle.set();
+void resetCursorRects() {
+	NSRect rect = new NSRect();
+	rect.x = rect.y = 0;
+	rect.width = view.frame().width;
+	rect.height = view.frame().height;
+	view.addCursorRect(rect, sizeCursor.handle);
 }
 
 void mouseUp(int theEvent) {

@@ -1652,6 +1652,7 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_acceptsFirstResponder, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_resignFirstResponder, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_becomeFirstResponder, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_resetCursorRects, proc2, "@:");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTScrollView";
@@ -3157,6 +3158,9 @@ int windowDelegateProc(int delegate, int sel) {
 	if (sel == OS.sel_resignFirstResponder) {
 		return widget.resignFirstResponder() ? 1 : 0;
 	}
+	if (sel == OS.sel_resetCursorRects) {
+		widget.resetCursorRects();
+	}	
 	return 0;
 }
 

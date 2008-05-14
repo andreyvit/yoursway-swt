@@ -1284,4 +1284,7 @@ int drawerWillResizeContents_toSize(int drawer, NSSize size) {
 	return (int) size.width;
 }
 
+void resetCursorRects() {
+}
+
 }
