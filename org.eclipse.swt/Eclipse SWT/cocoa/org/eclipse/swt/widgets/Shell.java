@@ -902,6 +902,7 @@ public void removeShellListener(ShellListener listener) {
 public void setActive () {
 	checkWidget ();
 	if (!isVisible ()) return;
+	window.makeKeyAndOrderFront(null);
 //	OS.SelectWindow (shellHandle);
 }
 
