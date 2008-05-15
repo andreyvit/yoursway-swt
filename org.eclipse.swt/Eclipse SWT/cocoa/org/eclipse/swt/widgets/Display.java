@@ -1080,10 +1080,19 @@ public Control getFocusControl () {
 		if (view != null && view.respondsToSelector(OS.sel_tag)) {
 			int tag = OS.objc_msgSend(view.id, OS.sel_tag);
 			if (tag != -1) {
-				Object object = OS.JNIGetObject(tag);
-				if (object instanceof Control) {
-					//TODO go up hierarchy
-					return (Control)object;
+				try {
+					Object object = OS.JNIGetObject(tag);
+					if (object instanceof Control) {
+						//TODO go up hierarchy
+						return (Control)object;
+					}
+				} catch (NullPointerException e) {
+					// In fact, there is nothing to fail within that method. 
+					// However, if the tag is an alien (for example, used internally 
+					// by Cocoa) it may crash with NPE. In this case the currently 
+					// focused control must be an alien too so we have
+					// nothing to do here. Bye. 
+					return null;				
 				}
 			} else {
 				/*
