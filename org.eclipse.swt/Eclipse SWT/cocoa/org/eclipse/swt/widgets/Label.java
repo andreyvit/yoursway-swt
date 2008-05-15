@@ -370,7 +370,7 @@ public void setText (String string) {
 	text = string;
 	NSCell cell = new NSCell(textView.cell());
 	cell.setAttributedStringValue(createString());
-	((NSBox)view).setContentView(textView);
+//	((NSBox)view).setContentView(textView);
 }
 
 }
