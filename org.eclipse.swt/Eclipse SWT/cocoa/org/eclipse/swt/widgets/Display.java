@@ -1563,6 +1563,7 @@ void initApplicationDelegate() {
 	OS.class_addMethod(cls, OS.sel_unhideAllApplications_1, appProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_applicationShouldTerminate_1, appProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_applicationWillTerminate_1, appProc3, "@:@");
+	OS.class_addMethod(cls, OS.sel__windowWillClose_1, appProc3, "@:@");
 	OS.objc_registerClassPair(cls);
 	
 	applicationDelegate = (SWTApplicationDelegate)new SWTApplicationDelegate().alloc().init();
@@ -2336,6 +2337,10 @@ public Rectangle map (Control from, Control to, int x, int y, int width, int hei
 public boolean readAndDispatch () {
 	checkDevice ();
 	NSAutoreleasePool pool = (NSAutoreleasePool)new NSAutoreleasePool().alloc().init();
+
+	NSNotificationCenter.defaultCenter().addObserver(applicationDelegate, OS.sel__windowWillClose_1, 
+			NSString.stringWith("NSWindowWillCloseNotification"), null);
+	
 	try {
 		boolean events = false;
 		events |= runTimers ();
@@ -3089,10 +3094,32 @@ int applicationDelegateProc(int id, int sel, int arg0) {
 		return OS.NSTerminateCancel;
 	} else if (sel == OS.sel_applicationWillTerminate_1) {
 		dispose();
-	} 
+	} else if (sel == OS.sel__windowWillClose_1) {
+		fixWindowsStatus(new NSNotification(arg0));
+	}
 	return 0;
 }
 
+
+void fixWindowsStatus(NSNotification notification) {
+	NSWindow deadWindow = new NSWindow(notification.object().id);
+	
+	if (application != null && application.isRunning()) {
+		NSArray windows = application.orderedWindows();
+		
+		NSEnumerator enumerator = windows.objectEnumerator();		
+		id nextWin;
+		while ((nextWin = enumerator.nextObject()) != null) {
+			if (nextWin.id == deadWindow.id)
+				continue;
+			NSWindow win = new NSWindow(nextWin.id);
+			if (win.canBecomeKeyWindow() && win.isVisible()) {
+				win.makeKeyAndOrderFront(null);
+				break;
+			}			
+		}
+	}
+}
 
 int dialogProc(int id, int sel, int arg0) {
 	int jniRef = OS.objc_msgSend(id, OS.sel_tag);

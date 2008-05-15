@@ -1413,6 +1413,7 @@ public static final int sel_descendantNodeAtIndexPath_1 = sel_registerName("desc
 public static final int sel_setPercentSymbol_1 = sel_registerName("setPercentSymbol:");
 public static final int sel_selectedCell = sel_registerName("selectedCell");
 public static final int sel_windowWillClose_1 = sel_registerName("windowWillClose:");
+public static final int sel__windowWillClose_1 = sel_registerName("_windowWillClose");
 public static final int sel_setDatePickerStyle_1 = sel_registerName("setDatePickerStyle:");
 public static final int sel_initWithObjects_1 = sel_registerName("initWithObjects:");
 public static final int sel_numberWithInt_1 = sel_registerName("numberWithInt:");
