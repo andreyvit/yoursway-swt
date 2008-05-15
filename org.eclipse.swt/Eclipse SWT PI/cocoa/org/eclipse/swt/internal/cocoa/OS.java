@@ -34,6 +34,7 @@ public class OS extends C {
 	public static final int kAlertNoteIcon = ('n'<<24) + ('o'<<16) + ('t'<<8) + 'e';
 	public static final int kAlertStopIcon = ('s'<<24) + ('t'<<16) + ('o'<<8) + 'p';
 
+	public static final int sel_performAction = sel_registerName("performAction:");
 	public static final int sel_sendSelection = sel_registerName("sendSelection");
 	public static final int sel_sendDoubleSelection = sel_registerName("sendDoubleSelection");
 	public static final int sel_sendArrowSelection = sel_registerName("sendArrowSelection");

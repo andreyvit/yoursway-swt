@@ -1824,6 +1824,11 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
 	OS.objc_registerClassPair(cls);
 
+	className = "SWTSearchField";
+	cls = OS.objc_allocateClassPair(OS.class_NSSearchField, className, 0);
+	OS.class_addMethod(cls, OS.sel_performAction, proc3, "@:@");
+	OS.objc_registerClassPair(cls);
+	
 	className = "SWTWindow";
 	cls = OS.objc_allocateClassPair(OS.class_NSWindow, className, 0);
 	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
@@ -3263,6 +3268,8 @@ int windowDelegateProc(int id, int sel, int arg0) {
 		widget.windowSendEvent(id, arg0);
 	} else if (sel == OS.sel_helpRequested_1) {
 		widget.helpRequested(arg0);
+	} else if (sel == OS.sel_performAction) {
+		widget.performAction(arg0);
 	}
 	return 0;
 }

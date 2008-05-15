@@ -331,7 +331,7 @@ void createHandle () {
 		if ((style & SWT.PASSWORD) != 0) {
 			widget = (NSTextField)new NSSecureTextField().alloc();
 		} else if ((style & SWT.SEARCH) != 0) {
-			widget = (NSTextField)new NSSearchField().alloc();
+			widget = (NSTextField)new SWTSearchField().alloc();						
 		} else {
 			widget = (NSTextField)new SWTTextField().alloc();
 		}
@@ -343,8 +343,12 @@ void createHandle () {
 		if ((style & SWT.CENTER) != 0) align = OS.NSCenterTextAlignment;
 		if ((style & SWT.RIGHT) != 0) align = OS.NSRightTextAlignment;
 		widget.setAlignment(align);
-//		widget.setTarget(widget);
-//		widget.setAction(OS.sel_sendSelection);
+		
+		if ((style & SWT.SEARCH) != 0) {
+			widget.setTarget(widget);
+			widget.setAction(OS.sel_performAction);
+		}
+		
 		widget.setTag(jniRef);
 		view = widget;
 		parent.contentView().addSubview_(widget);
@@ -1656,6 +1660,10 @@ String verifyText (String string, int start, int end, Event keyEvent) {
 	sendEvent (SWT.Verify, event);
 	if (!event.doit || isDisposed ()) return null;
 	return event.text;
+}
+
+void performAction(int sender) {
+	sendEvent (SWT.Modify);
 }
 
 }
