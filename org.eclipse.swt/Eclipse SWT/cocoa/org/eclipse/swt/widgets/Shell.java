@@ -481,9 +481,7 @@ void createHandle () {
 }
 
 void destroyWidget () {
-	NSWindow window = this.window;
 	releaseHandle ();
-	if (window != null) window.close();
 }
 
 Control findBackgroundControl () {
@@ -834,6 +832,7 @@ void releaseChildren (boolean destroy) {
 }
 
 void releaseHandle () {
+	window.close();
 	window.setDelegate(null);
 	if (windowDelegate != null) windowDelegate.release();
 	windowDelegate = null;
