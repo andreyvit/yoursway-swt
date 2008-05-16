@@ -1666,4 +1666,12 @@ void performAction(int sender) {
 	sendEvent (SWT.Modify);
 }
 
+public void setPlaceholderString(String string) {
+	if ((style & SWT.SEARCH) != 0) {
+		NSSearchField nsSearchField = (NSSearchField) view;
+        NSSearchFieldCell theCell = new NSSearchFieldCell(nsSearchField.cell());
+        theCell.setPlaceholderString(NSString.stringWith(string));
+	}
+}
+
 }
