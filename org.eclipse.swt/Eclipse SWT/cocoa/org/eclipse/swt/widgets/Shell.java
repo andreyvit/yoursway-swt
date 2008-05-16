@@ -1104,6 +1104,10 @@ public void setMinimized (boolean minimized) {
  */
 public void setMinimumSize (int width, int height) {
 	checkWidget();
+	NSSize size = new NSSize();
+	size.width = width;
+	size.height = height;
+	window.setMinSize(size);
 //	int clientWidth = 0, clientHeight = 0;
 //	int trim = SWT.TITLE | SWT.CLOSE | SWT.MIN | SWT.MAX;
 //	if ((style & SWT.NO_TRIM) == 0 && (style & trim) != 0) {
