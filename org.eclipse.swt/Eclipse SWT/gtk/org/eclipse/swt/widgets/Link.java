@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,10 @@ import org.eclipse.swt.accessibility.*;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#link">Link snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -257,6 +261,10 @@ Rectangle [] getRectangles (int linkIndex) {
 	return rects;
 }
 
+int getClientWidth () {
+	return (state & ZERO_WIDTH) != 0 ? 0 : OS.GTK_WIDGET_WIDTH (handle);
+}
+
 /**
  * Returns the receiver's text, which will be an empty
  * string if it has never been set.
@@ -282,6 +290,7 @@ int /*long*/ gtk_button_press_event (int /*long*/ widget, int /*long*/ event) {
 		if (focusIndex != -1) setFocus ();
 		int x = (int) gdkEvent.x;
 		int y = (int) gdkEvent.y;
+		if ((style & SWT.MIRRORED) != 0) x = getClientWidth () - x;
 		int offset = layout.getOffset (x, y, null);
 		int oldSelectionX = selection.x;
 		int oldSelectionY = selection.y;
@@ -320,6 +329,7 @@ int /*long*/ gtk_button_release_event (int /*long*/ widget, int /*long*/ event) 
 	if (gdkEvent.button == 1) {
 		int x = (int) gdkEvent.x;
 		int y = (int) gdkEvent.y;
+		if ((style & SWT.MIRRORED) != 0) x = getClientWidth () - x;
 		Rectangle [] rects = getRectangles (focusIndex);
 		for (int i = 0; i < rects.length; i++) {
 			Rectangle rect = rects [i];
@@ -424,6 +434,7 @@ int /*long*/ gtk_motion_notify_event (int /*long*/ widget, int /*long*/ event) {
 	OS.memmove (gdkEvent, event, GdkEventMotion.sizeof);
 	int x = (int) gdkEvent.x;
 	int y = (int) gdkEvent.y;	
+	if ((style & SWT.MIRRORED) != 0) x = getClientWidth () - x;
 	if ((gdkEvent.state & OS.GDK_BUTTON1_MASK) != 0) {
 		int oldSelection = selection.y;
 		selection.y = layout.getOffset (x, y, null);

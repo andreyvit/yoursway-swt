@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,6 +34,10 @@ import org.eclipse.swt.accessibility.Accessible;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#control">Control snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Control extends Widget implements Drawable {
 	/**
@@ -101,29 +105,16 @@ public Control (Composite parent, int style) {
 	createWidget ();
 }
 
-boolean acceptsFirstResponder () {
-	objc_super super_struct = new objc_super();
-	super_struct.receiver = view.id;
-	super_struct.cls = OS.objc_msgSend(view.id, OS.sel_superclass);
-	return OS.objc_msgSendSuper(super_struct, OS.sel_acceptsFirstResponder) != 0;
+boolean becomeFirstResponder (int id, int sel) {
+	boolean result = super.becomeFirstResponder (id, sel);
+	if (result && id == focusView ().id) sendFocusEvent (SWT.FocusIn, false);
+	return result;
 }
 
-boolean becomeFirstResponder () {
-//TODO - query focusControl() in SWT.FocusIn/Out is the control
-	sendEvent (SWT.FocusIn);
-	objc_super super_struct = new objc_super();
-	super_struct.receiver = view.id;
-	super_struct.cls = OS.objc_msgSend(view.id, OS.sel_superclass);
-	return OS.objc_msgSendSuper(super_struct, OS.sel_becomeFirstResponder) != 0;
-}
-
-boolean resignFirstResponder () {
-//TODO - query focusControl() in SWT.FocusIn/Out is the control
-	sendEvent (SWT.FocusOut);
-	objc_super super_struct = new objc_super();
-	super_struct.receiver = view.id;
-	super_struct.cls = OS.objc_msgSend(view.id, OS.sel_superclass);
-	return OS.objc_msgSendSuper(super_struct, OS.sel_resignFirstResponder) != 0;
+boolean resignFirstResponder (int id, int sel) {
+	boolean result = super.resignFirstResponder (id, sel);
+	if (result && id == focusView ().id) sendFocusEvent (SWT.FocusOut, false);
+	return result;
 }
 
 /**
@@ -560,18 +551,22 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
 	int width = DEFAULT_WIDTH;
 	int height = DEFAULT_HEIGHT;
-//	if (wHint != SWT.DEFAULT) width = wHint;
-//	if (hHint != SWT.DEFAULT) height = hHint;
-//	int border = getBorderWidth ();
-//	width += border * 2;
-//	height += border * 2;
-//	return new Point (width, height);
 	if (topView() instanceof NSControl) {
 		NSRect oldRect = topView().frame();
 		((NSControl)topView()).sizeToFit();
 		NSRect newRect = topView().frame();
 		topView().setFrame (oldRect);
-		return new Point ((int)newRect.width, (int)newRect.height);
+		width = (int) newRect.width;
+		height = (int)newRect.height;
+	}
+	int border = getBorderWidth ();
+	if (wHint != SWT.DEFAULT) {
+		width = wHint;
+		width += border * 2;
+	}
+	if (hHint != SWT.DEFAULT) {
+		height = hHint;
+		height += border * 2;
 	}
 	return new Point (width, height);
 }
@@ -605,6 +600,10 @@ Control computeTabRoot () {
 	return parent.computeTabRoot ();
 }
 
+NSView contentView () {
+	return view;
+}
+
 void createWidget () {
 	state |= DRAG_DETECT;
 	checkOrientation (parent);
@@ -632,6 +631,11 @@ Font defaultFont () {
 
 Color defaultForeground () {
 	return display.getSystemColor (SWT.COLOR_WIDGET_FOREGROUND);
+}
+
+void deregister () {
+	super.deregister ();
+	display.removeWidget (view);
 }
 
 void destroyWidget () {
@@ -771,9 +775,36 @@ void drawRect(int id, NSRect rect) {
 }
 
 void enableWidget (boolean enabled) {
-	//TODO - other views
 	if (view instanceof NSControl) {
 		((NSControl)view).setEnabled(enabled);
+	}
+}
+
+void fillBackground (NSView view, NSGraphicsContext context, NSRect rect) {
+	Control control = findBackgroundControl();
+	if (control == null) control = this;
+	Image image = control.backgroundImage;
+	if (image != null && !image.isDisposed()) {
+		context.saveGraphicsState();
+		NSColor.colorWithPatternImage(image.handle).setFill();
+		NSPoint phase = new NSPoint();
+		NSView controlView = control.view;
+		NSView contentView = controlView.window().contentView();
+		phase = controlView.convertPoint_toView_(phase, contentView);
+		phase.y = contentView.bounds().height - phase.y;
+		context.setPatternPhase(phase);
+		NSBezierPath.fillRect(rect);
+		context.restoreGraphicsState();
+		return;
+	}
+	Color background = control.background;
+	if (background != null && !background.isDisposed ()) {
+		float [] color = background.handle;
+		context.saveGraphicsState();
+		NSColor.colorWithDeviceRed(color [0], color [1], color [2], color [3]).setFill();
+		NSBezierPath.fillRect(rect);
+		context.restoreGraphicsState();
+		return;
 	}
 }
 
@@ -808,6 +839,42 @@ void fixFocus (Control focusControl) {
 //	OS.ClearKeyboardFocus (window);
 }
 
+void flagsChanged(int theEvent) {
+	Display display = this.display;
+	NSEvent nsEvent = new NSEvent(theEvent);
+	int modifiers = nsEvent.modifierFlags();
+	int lastModifiers = display.lastModifiers;
+//	int chord = OS.GetCurrentEventButtonState ();
+	int type = SWT.KeyUp;	
+	if ((modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) type = SWT.KeyDown;
+	if ((modifiers & OS.NSAlternateKeyMask) != 0 && (lastModifiers & OS.NSAlternateKeyMask) == 0) type = SWT.KeyDown;
+	if ((modifiers & OS.NSShiftKeyMask) != 0 && (lastModifiers & OS.NSShiftKeyMask) == 0) type = SWT.KeyDown;
+	if ((modifiers & OS.NSControlKeyMask) != 0 && (lastModifiers & OS.NSControlKeyMask) == 0) type = SWT.KeyDown;
+	if ((modifiers & OS.NSCommandKeyMask) != 0 && (lastModifiers & OS.NSCommandKeyMask) == 0) type = SWT.KeyDown;
+	if (type == SWT.KeyUp && (modifiers & OS.NSAlphaShiftKeyMask) == 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) != 0) {
+		Event event = new Event ();
+		event.keyCode = SWT.CAPS_LOCK;
+		setInputState(event, nsEvent, type);
+		sendKeyEvent (SWT.KeyDown, event);
+	}
+	Event event = new Event ();
+	event.keyCode = Display.translateKey(nsEvent.keyCode());
+	setInputState(event, nsEvent, type);
+	if (event.keyCode == 0 && event.character == 0) return;
+	sendKeyEvent (type, event);
+	if (type == SWT.KeyDown && (modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) {
+		event = new Event ();
+		event.keyCode = SWT.CAPS_LOCK;
+//		setInputState (event, SWT.KeyUp, chord, modifiers);
+		sendKeyEvent (SWT.KeyUp, event);
+	}
+	display.lastModifiers = modifiers;
+}
+
+NSView focusView () {
+	return view;
+}
+
 /**
  * Forces the receiver to have the <em>keyboard focus</em>, causing
  * all keyboard events to be delivered to it.
@@ -823,7 +890,6 @@ void fixFocus (Control focusControl) {
  */
 public boolean forceFocus () {
 	checkWidget();
-//	if (display.focusEvent == SWT.FocusOut) return false;
 	Decorations shell = menuShell ();
 	shell.setSavedFocus (this);
 	if (!isEnabled () || !isVisible ()/* || !isActive ()*/) return false;
@@ -831,7 +897,7 @@ public boolean forceFocus () {
 	shell.setSavedFocus (null);
 	shell.bringToTop (false);
 	if (isDisposed ()) return false;
-	view.window ().makeFirstResponder (view);
+	view.window ().makeFirstResponder (focusView ());
 	if (isDisposed ()) return false;
 	shell.setSavedFocus (this);
 	return hasFocus ();
@@ -958,7 +1024,9 @@ public boolean getDragDetect () {
  * When the mouse pointer passes over a control its appearance
  * is changed to match the control's cursor.
  * </p>
- * </ul>
+ *
+ * @return the receiver's cursor or <code>null</code>
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1156,6 +1224,19 @@ Control [] getPath () {
 	return result;
 }
 
+/** 
+ * Returns the region that defines the shape of the control,
+ * or null if the control has the default shape.
+ *
+ * @return the region that defines the shape of the shell (or null)
+ *	
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public Region getRegion () {
 	checkWidget ();
 	return region;
@@ -1244,6 +1325,11 @@ boolean hasBorder () {
 
 boolean hasFocus () {
 	return this == display.getFocusControl ();
+}
+
+int hitTest (int id, int sel, NSPoint point) {
+	if ((state & DISABLED) != 0) return 0;
+	return super.hitTest(id, sel, point);
 }
 
 /**	 
@@ -1345,10 +1431,6 @@ boolean isFocusAncestor (Control control) {
  */
 public boolean isFocusControl () {
 	checkWidget();
-//	Control focusControl = display.focusControl;
-//	if (focusControl != null && !focusControl.isDisposed ()) {
-//		return this == focusControl;
-//	}
 	return hasFocus ();
 }
 
@@ -1408,6 +1490,10 @@ boolean isTabItem () {
 	return (code & (SWT.TRAVERSE_ARROW_PREVIOUS | SWT.TRAVERSE_ARROW_NEXT)) != 0;
 }
 
+boolean isTrim (NSView view) {
+	return false;
+}
+
 /**
  * Returns <code>true</code> if the receiver is visible and all
  * ancestors up to and including the receiver's nearest ancestor
@@ -1428,9 +1514,8 @@ public boolean isVisible () {
 }
 
 int menuForEvent (int nsEvent) {
-	NSPoint pt = NSEvent.mouseLocation(); 	
-	NSWindow window = view.window();
-	pt.y = (int) (window.screen().frame().height - pt.y);
+	NSPoint pt = NSEvent.mouseLocation();
+	pt.y = (int) (display.getPrimaryFrame().height - pt.y);
 	int x = (int) pt.x;
 	int y = (int) pt.y;
 	Event event = new Event ();
@@ -1455,130 +1540,29 @@ Decorations menuShell () {
 	return parent.menuShell ();
 }
 
-boolean setInputState (Event event, NSEvent nsEvent, int type) {
-	int modifierFlags = nsEvent.modifierFlags();
-	if ((modifierFlags & OS.NSAlternateKeyMask) != 0) event.stateMask |= SWT.ALT;
-	if ((modifierFlags & OS.NSShiftKeyMask) != 0) event.stateMask |= SWT.SHIFT;
-	if ((modifierFlags & OS.NSControlKeyMask) != 0) event.stateMask |= SWT.CONTROL;
-	if ((modifierFlags & OS.NSCommandKeyMask) != 0) event.stateMask |= SWT.COMMAND;
-	
-	switch (type) {
-	case SWT.MouseDown:
-	case SWT.MouseDoubleClick:
-	case SWT.MouseUp:
-		int buttonMask = nsEvent.buttonMask();
-		if ((buttonMask & OS.NSLeftMouseDownMask) != 0) event.stateMask |= SWT.BUTTON1;
-		if ((buttonMask & OS.NSLeftMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON1;
-		if ((buttonMask & OS.NSLeftMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
-		if ((buttonMask & OS.NSOtherMouseDownMask) != 0) event.stateMask |= SWT.BUTTON2;
-		if ((buttonMask & OS.NSOtherMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON2;
-		if ((buttonMask & OS.NSOtherMouseUpMask) != 0) event.stateMask |= SWT.BUTTON1;
-		if ((buttonMask & OS.NSRightMouseDownMask) != 0) event.stateMask |= SWT.BUTTON3;
-		if ((buttonMask & OS.NSRightMouseDraggedMask) != 0) event.stateMask |= SWT.BUTTON3;
-		if ((buttonMask & OS.NSRightMouseUpMask) != 0) event.stateMask |= SWT.BUTTON3;
-		break;
-	}		
-	
-//	if (OS.GetKeyState (OS.VK_XBUTTON1) < 0) event.stateMask |= SWT.BUTTON4;
-//	if (OS.GetKeyState (OS.VK_XBUTTON2) < 0) event.stateMask |= SWT.BUTTON5;
-//	switch (type) {
-//		case SWT.MouseDown:
-//		case SWT.MouseDoubleClick:
-//			if (event.button == 1) event.stateMask &= ~SWT.BUTTON1;
-//			if (event.button == 2) event.stateMask &= ~SWT.BUTTON2;
-//			if (event.button == 3) event.stateMask &= ~SWT.BUTTON3;
-//			if (event.button == 4) event.stateMask &= ~SWT.BUTTON4;
-//			if (event.button == 5) event.stateMask &= ~SWT.BUTTON5;
-//			break;
-//		case SWT.MouseUp:
-//			if (event.button == 1) event.stateMask |= SWT.BUTTON1;
-//			if (event.button == 2) event.stateMask |= SWT.BUTTON2;
-//			if (event.button == 3) event.stateMask |= SWT.BUTTON3;
-//			if (event.button == 4) event.stateMask |= SWT.BUTTON4;
-//			if (event.button == 5) event.stateMask |= SWT.BUTTON5;
-//			break;
-//		case SWT.KeyDown:
-//		case SWT.Traverse:
-//			if (event.keyCode == SWT.ALT) event.stateMask &= ~SWT.ALT;
-//			if (event.keyCode == SWT.SHIFT) event.stateMask &= ~SWT.SHIFT;
-//			if (event.keyCode == SWT.CONTROL) event.stateMask &= ~SWT.CONTROL;
-//			break;
-//		case SWT.KeyUp:
-//			if (event.keyCode == SWT.ALT) event.stateMask |= SWT.ALT;
-//			if (event.keyCode == SWT.SHIFT) event.stateMask |= SWT.SHIFT;
-//			if (event.keyCode == SWT.CONTROL) event.stateMask |= SWT.CONTROL;
-//			break;
-//	}		
-	return true;
-}
-
-boolean sendMouseEvent (NSEvent nsEvent, int type, int button) {
-	return sendMouseEvent(nsEvent, type, button, nsEvent.clickCount());
-}
-
-boolean sendMouseEvent (NSEvent nsEvent, int type, int button, int count) {
-	Event event = new Event ();
-	event.button = button;
-//	event.detail = detail;
-	event.count = count;
-	NSPoint location = nsEvent.locationInWindow();
-	NSPoint point = view.convertPoint_fromView_(location, null);
-	event.x = (int) point.x;
-	event.y = (int) point.y;
-	setInputState (event, nsEvent, type);
-	sendEvent (type, event);
-	return event.doit;
-}
-
-void mouseDown(int theEvent) {
-	NSEvent nsEvent = new NSEvent (theEvent);
-	sendMouseEvent (nsEvent, SWT.MouseDown, 1);
-}
-
-void mouseDragged(int theEvent) {
-	NSEvent nsEvent = new NSEvent (theEvent);
-	sendMouseEvent (nsEvent, SWT.MouseMove, 1);
-}
-
-void mouseUp(int theEvent) {
-	NSEvent nsEvent = new NSEvent (theEvent);
-	sendMouseEvent (nsEvent, SWT.MouseUp, 1);
-}
-
-boolean sendKeyEvent (Event event) {
-	sendEvent (event);
-	return event.doit;
-}
-
-//TODO - missing modifier keys (see flagsChanged:)
-boolean sendKeyEvent (NSEvent nsEvent, int type) {
-	if ((state & SAFARI_EVENTS_FIX) != 0) return false;
-	int count = 0;
-	NSString keys = nsEvent.characters();
-	//TODO - check lowercase doesn't mangle char codes
-	NSString keyCodes = nsEvent.charactersIgnoringModifiers().lowercaseString();
-	char [] chars = new char [keys.length()];
-	for (int i=0; i<keys.length(); i++) {
-		Event event = new Event ();
-		int keyCode = Display.translateKey (keys.characterAtIndex (i) & 0xFFFF);
-		if (keyCode != 0) {
-			event.keyCode = keyCode;
-		} else {
-			event.character = (char) keys.characterAtIndex (i);
-			//TODO - get unshifted values for Shift+1
-			event.keyCode = keyCodes.characterAtIndex (i);
-		}
-		setInputState (event, nsEvent, type);
-		if (!setKeyState(event, type, nsEvent)) return false;
-		if (sendKeyEvent (type, event)) {
-			chars [count++] = chars [i];
+void scrollWheel (int id, int sel, int theEvent) {
+	if (id == view.id) {
+		if (hooks (SWT.MouseWheel) || filters (SWT.MouseWheel)) {
+			NSEvent nsEvent = new NSEvent(theEvent);
+			if (nsEvent.deltaY() != 0) {
+				if (!sendMouseEvent(nsEvent, SWT.MouseWheel, true)) {
+					return;
+				}
+			}
 		}
 	}
-//	if (count == 0) return false;
-	if (count != keys.length () - 1) {
-//		OS.SetEventParameter (theEvent, OS.kEventParamKeyUnicodes, OS.typeUnicodeText, count * 2, chars);
-	}
-	return count == keys.length ();
+	super.scrollWheel(id, sel, theEvent);
+}
+
+void mouseDown(int id, int sel, int theEvent) {
+	Display display = this.display;
+	display.trackingControl = this;
+	super.mouseDown(id, sel, theEvent);
+	display.trackingControl = null;
+}
+
+void moved () {
+	sendEvent (SWT.Move);
 }
 
 void markLayout (boolean changed, boolean all) {
@@ -1690,6 +1674,23 @@ public void pack (boolean changed) {
 	setSize (computeSize (SWT.DEFAULT, SWT.DEFAULT, changed));
 }
 
+/**
+ * Prints the receiver and all children.
+ * 
+ * @param gc the gc where the drawing occurs
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the gc has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public boolean print (GC gc) {
 	checkWidget ();
 	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -1779,23 +1780,31 @@ public void redraw (int x, int y, int width, int height, boolean all) {
 	view.setNeedsDisplayInRect(rect);
 }
 
+void register () {
+	super.register ();
+	display.addWidget (view, this);
+}
+
 void releaseHandle () {
 	super.releaseHandle ();
-	if (view != null) {
-		OS.objc_msgSend(view.id, OS.sel_setTag_1, -1);
-		view.release();
-	}
+	if (view != null) view.release();
 	view = null;
 	parent = null;
 }
 
 void releaseParent () {
-//	setVisible (topHandle (), false);
 	parent.removeControl (this);
 }
 
 void releaseWidget () {
 	super.releaseWidget ();
+	if (display.currentControl == this) {
+		display.currentControl = null;
+		display.timerExec(-1, display.hoverTimer);
+	}
+	if (display.grabControl == this) {
+		display.grabControl = null;
+	}
 	if (menu != null && !menu.isDisposed ()) {
 		menu.dispose ();
 	}
@@ -2110,6 +2119,10 @@ public void removeTraverseListener(TraverseListener listener) {
 	eventTable.unhook (SWT.Traverse, listener);
 }
 
+void resized () {
+	sendEvent (SWT.Resize);
+}
+
 boolean sendDragEvent (int button, int stateMask, int x, int y) {
 	Event event = new Event ();
 	event.button = button;
@@ -2120,38 +2133,18 @@ boolean sendDragEvent (int button, int stateMask, int x, int y) {
 	return event.doit;
 }
 
-boolean sendDragEvent (int button, int chord, int modifiers, int x, int y) {
-	Event event = new Event ();
-	switch (button) {
-		case 1: event.button = 1; break;
-		case 2: event.button = 3; break;
-		case 3: event.button = 2; break;
-		case 4: event.button = 4; break;
-		case 5: event.button = 5; break;
-	}
-	event.x = x;
-	event.y = y;
-	setInputState (event, SWT.DragDetect, chord, modifiers);
-	postEvent (SWT.DragDetect, event);
-	return event.doit;
+boolean sendDragEvent (NSEvent nsEvent) {
+	return sendMouseEvent(nsEvent, SWT.DragDetect, true);
 }
 
 void sendFocusEvent (int type, boolean post) {
 	Display display = this.display;
 	Shell shell = getShell ();
-	/*
-	* Feature in the Macintosh.  GetKeyboardFocus() returns NULL during
-	* kEventControlSetFocusPart if the focus part is not kControlFocusNoPart.
-	* The fix is to remember the focus control and return it during
-	* kEventControlSetFocusPart.
-	*/
-//	display.focusControl = this;
-//	display.focusEvent = type;
 	if (post) {
 		postEvent (type);
 	} else {
 		sendEvent (type);
-	}	
+	}
 	/*
 	* It is possible that the shell may be
 	* disposed at this point.  If this happens
@@ -2170,12 +2163,46 @@ void sendFocusEvent (int type, boolean post) {
 				break;
 		}
 	}
-//	display.focusEvent = SWT.None;
-//	display.focusControl = null;
 }
 
-boolean sendMouseWheel (float deltaX, float deltaY) {
-	return false;
+boolean sendMouseEvent (NSEvent nsEvent, int type, boolean send) {
+	Shell shell = null;
+	Event event = new Event ();
+	switch (type) {
+		case SWT.MouseDown:
+			shell = getShell ();
+			//FALL THROUGH
+		case SWT.MouseUp:
+		case SWT.MouseDoubleClick:
+			int button = nsEvent.buttonNumber();
+			switch (button) {
+				case 0: event.button = 1; break;
+				case 1: event.button = 3; break;
+				case 2: event.button = 2; break;
+				case 3: event.button = 4; break;
+				case 4: event.button = 5; break;
+			}
+			break;
+		case SWT.MouseWheel:
+			event.detail = SWT.SCROLL_LINE;
+			float delta = nsEvent.deltaY();
+			event.count = delta > 0 ? Math.max (1, (int)delta) : Math.min (-1, (int)delta);
+			break;
+	}
+	if (event.button != 0) event.count = nsEvent.clickCount();
+	NSPoint windowPoint = view.window().convertScreenToBase(NSEvent.mouseLocation());
+	NSPoint point = view.convertPoint_fromView_(windowPoint, null);
+	event.x = (int) point.x;
+	event.y = (int) point.y;
+	setInputState (event, nsEvent, type);
+	if (send) {
+		sendEvent (type, event);
+		if (isDisposed ()) return false;
+	} else {
+		postEvent (type, event);
+	}
+	if (shell != null) shell.setActiveControl(this);
+	return event.doit;
 }
 
 void setBackground () {
@@ -2286,44 +2313,26 @@ public void setBounds (int x, int y, int width, int height) {
 	setBounds (x, y, Math.max (0, width), Math.max (0, height), true, true);
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = 0;
+void setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
 	NSView topView = topView();
-	NSRect rect = topView.frame();
 	if (move && resize) {
-		if (rect.x != x || rect.y != y) result |= MOVED;
-		if (rect.width != width || rect.height != height) result |= RESIZED;
-		if (result != 0) {
-			rect.x = x;
-			rect.y = y;
-			rect.width = width;
-			rect.height = height;
-			topView.setFrame (rect);
-		}
+		NSRect rect = new NSRect();
+		rect.x = x;
+		rect.y = y;
+		rect.width = width;
+		rect.height = height;
+		topView.setFrame (rect);
 	} else if (move) {
-		if (rect.x != x || rect.y != y) {
-			result |= MOVED;
-			NSPoint point = new NSPoint();
-			point.x = x;
-			point.y = y;
-			topView.setFrameOrigin(point);
-		}
+		NSPoint point = new NSPoint();
+		point.x = x;
+		point.y = y;
+		topView.setFrameOrigin(point);
 	} else if (resize) {
-		if (rect.width != width || rect.height != height) {
-			result |= RESIZED;
-			NSSize size = new NSSize();
-			size.width = width;
-			size.height = height;
-			topView.setFrameSize(size);
-		}
+		NSSize size = new NSSize();
+		size.width = width;
+		size.height = height;
+		topView.setFrameSize(size);
 	}
-	if ((result & MOVED) != 0) {
-		sendEvent(SWT.Move);
-	}
-	if ((result & RESIZED) != 0) {
-		sendEvent(SWT.Resize);
-	}
-	return result;
 }
 
 /**
@@ -2353,7 +2362,8 @@ public void setBounds (Rectangle rect) {
 /**
  * If the argument is <code>true</code>, causes the receiver to have
  * all mouse events delivered to it until the method is called with
- * <code>false</code> as the argument.
+ * <code>false</code> as the argument.  Note that on some platforms,
+ * a mouse button must currently be down for capture to be assigned.
  *
  * @param capture <code>true</code> to capture the mouse, and <code>false</code> to release it
  *
@@ -2389,8 +2399,8 @@ public void setCursor (Cursor cursor) {
 	checkWidget();
 	if (cursor != null && cursor.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	this.cursor = cursor;
-	//TODO null
-//	view.addCursorRect(view.frame(), cursor.handle);
+	if (!isEnabled()) return;
+	display.setCursor (display.currentControl);
 }
 
 void setDefaultFont () {
@@ -2439,10 +2449,8 @@ public void setEnabled (boolean enabled) {
 	Control control = null;
 	boolean fixFocus = false;
 	if (!enabled) {
-//		if (display.focusEvent != SWT.FocusOut) {
-			control = display.getFocusControl ();
-			fixFocus = isFocusAncestor (control);
-//		}
+		control = display.getFocusControl ();
+		fixFocus = isFocusAncestor (control);
 	}
 	if (enabled) {
 		state &= ~DISABLED;
@@ -2547,6 +2555,32 @@ void setForeground (int control, float [] color) {
 //		fontStyle.flags &= ~OS.kControlUseForeColorMask;
 //	}
 //	OS.SetControlFontStyle (control, fontStyle);
+}
+
+void setFrameOrigin (int id, int sel, NSPoint point) {
+	NSView topView = topView ();
+	if (topView.id != id) {
+		super.setFrameOrigin(id, sel, point);
+		return;
+	}
+	NSRect frame = topView.frame();
+	super.setFrameOrigin(id, sel, point);
+	if (frame.x != point.x || frame.y != point.y) {
+		moved ();
+	}
+}
+
+void setFrameSize (int id, int sel, NSSize size) {
+	NSView topView = topView ();
+	if (topView.id != id) {
+		super.setFrameSize(id, sel, size);
+		return;
+	}
+	NSRect frame = topView.frame();
+	super.setFrameSize(id, sel, size);
+	if (frame.width != size.width || frame.height != size.height) {
+		resized ();
+	}
 }
 
 /**
@@ -2673,10 +2707,11 @@ public boolean setParent (Composite parent) {
 		Menu [] menus = oldShell.findMenus (this);
 		fixChildren (newShell, oldShell, newDecorations, oldDecorations, menus);
 	}
-//	int topHandle = topHandle ();
-//	OS.HIViewAddSubview (parent.handle, topHandle);
-//	OS.HIViewSetVisible (topHandle, (state & HIDDEN) == 0);
-//	OS.HIViewSetZOrder (topHandle, OS.kHIViewZOrderBelow, 0);
+	NSView topView = topView ();
+	topView.retain();
+	topView.removeFromSuperview();
+	parent.contentView().addSubview_positioned_relativeTo_(topView, OS.NSWindowBelow, null);
+	topView.release();
 	this.parent = parent;
 	return true;
 }
@@ -2721,6 +2756,23 @@ public void setRedraw (boolean redraw) {
 	}
 }
 
+/**
+ * Sets the shape of the control to the region specified
+ * by the argument.  When the argument is null, the
+ * default shape of the control is restored.
+ *
+ * @param region the region that defines the shape of the control (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the region has been disposed</li>
+ * </ul>  
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void setRegion (Region region) {
 	checkWidget ();
 	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
@@ -2849,10 +2901,8 @@ public void setVisible (boolean visible) {
 	Control control = null;
 	boolean fixFocus = false;
 	if (!visible) {
-//		if (display.focusEvent != SWT.FocusOut) {
-			control = display.getFocusControl ();
-			fixFocus = isFocusAncestor (control);
-//		}
+		control = display.getFocusControl ();
+		fixFocus = isFocusAncestor (control);
 	}
 	topView().setHidden(!visible);
 	if (!visible) {
@@ -2868,14 +2918,8 @@ public void setVisible (boolean visible) {
 }
 
 void setZOrder () {
-//	int topHandle = topHandle ();
-//	int parentHandle = parent.handle;
-//	OS.HIViewAddSubview (parentHandle, topHandle);
-//	OS.HIViewSetZOrder (topHandle, OS.kHIViewZOrderBelow, 0);
-//	Rect rect = getInset ();
-//	rect.right = rect.left;
-//	rect.bottom = rect.top;
-//	OS.SetControlBounds (topHandle, rect);
+	NSView topView = topView ();
+	parent.contentView().addSubview_positioned_relativeTo_(topView, OS.NSWindowBelow, null);
 }
 
 void setZOrder (Control control, boolean above) {
@@ -3213,23 +3257,6 @@ void updateBackgroundMode () {
 
 void updateLayout (boolean all) {
 	/* Do nothing */
-}
-
-void scrollWheel(int notification) {
-	NSEvent event = new NSEvent(notification);
-	float deltaX = event.deltaX();
-	float deltaY = event.deltaY();
-	Shell shell = getShell ();
-	Control control = this;
-	while (control != null) {
-		if (!control.sendMouseEvent (event, SWT.MouseWheel, 0, (int)(deltaY))) {
-			break;
-		}
-		if (control.sendMouseWheel (deltaX, deltaY)) break;
-		
-		if (control == shell) break;
-		control = control.parent;
-	}
 }
 
 }

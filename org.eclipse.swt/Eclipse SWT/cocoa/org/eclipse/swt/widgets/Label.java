@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -21,6 +21,12 @@ import org.eclipse.swt.graphics.*;
  * user interface object that displays a string or image.
  * When SEPARATOR is specified, displays a single
  * vertical or horizontal line.
+ * <p>
+ * Shadow styles are hints and may not be honoured
+ * by the platform.  To create a separator label
+ * with the default shadow style for the platform,
+ * do not specify a shadow style.
+ * </p>
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>SEPARATOR, HORIZONTAL, VERTICAL</dd>
@@ -37,6 +43,10 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#label">Label snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Label extends Control {
 	String text = "";
@@ -97,54 +107,47 @@ static int checkStyle (int style) {
 
 public Point computeSize (int wHint, int hHint, boolean changed) {
 	checkWidget();
-	int width = 0, height = 0;
-	if ((style & SWT.SEPARATOR) != 0) {
-		if ((style & SWT.HORIZONTAL) != 0) {
-			width = DEFAULT_WIDTH;
-			height = 3;
-		} else {
-			width = 3;
-			height = DEFAULT_HEIGHT;
-		}
+	NSRect oldRect = view.frame ();
+	int width = DEFAULT_WIDTH;
+	int height = DEFAULT_HEIGHT;
+	if (isImage && image != null) {
+		NSImage nsimage = image.handle;
+		NSSize size = nsimage.size ();
+		width = (int) size.width;
+		height = (int) size.height;
 	} else {
-		if (image != null && isImage) {
-			Rectangle bounds = image.getBounds();
-			width = bounds.width;
-			height = bounds.height;
-		} else {
-			NSRect oldRect = textView.frame();
-			textView.sizeToFit();
-			NSRect newRect = textView.frame();
-			textView.setFrame (oldRect);
-			width = (int)newRect.width;
-			height = (int)newRect.height;
-		}
+		((NSBox) view).sizeToFit ();
+		NSRect newRect = view.frame ();
+		width = (int) newRect.width;
+		height = (int) newRect.height;
+		view.setFrame (oldRect);
 	}
-	if (wHint != SWT.DEFAULT) width = wHint;
-	if (hHint != SWT.DEFAULT) height = hHint;
 	return new Point (width, height);
 }
 
 void createHandle () {
 	SWTBox widget = (SWTBox)new SWTBox().alloc();
 	widget.initWithFrame(new NSRect());
-	widget.setTag(jniRef);
 	widget.setTitle(NSString.stringWith(""));
 	if ((style & SWT.SEPARATOR) != 0) {
 		widget.setBoxType(OS.NSBoxSeparator);
 	} else {
 		widget.setBorderType(OS.NSNoBorder);
+		widget.setBorderWidth (0);
+		widget.setBoxType (OS.NSBoxCustom);
+		NSSize offsetSize = new NSSize ();
+		widget.setContentViewMargins (offsetSize);
 
-		NSImageView imageWidget = (NSImageView)new SWTImageView().alloc();
-		imageWidget.initWithFrame(new NSRect());
-		imageWidget.setTag(jniRef);
+		NSImageView imageWidget = (NSImageView) new SWTImageView ().alloc ();
+		imageWidget.initWithFrame(new NSRect ());
+		imageWidget.setTag (jniRef);
+		imageWidget.setImageScaling (OS.NSScaleNone);
 		
 		SWTTextField textWidget = (SWTTextField)new SWTTextField().alloc();
 		textWidget.initWithFrame(new NSRect());
 		textWidget.setBordered(false);
 		textWidget.setEditable(false);
 		textWidget.setDrawsBackground(false);
-		textWidget.setTag(jniRef);
 		if ((style & SWT.WRAP) != 0) {
 			NSTextFieldCell cell = new NSTextFieldCell(textWidget.cell());
 			cell.setWraps(true);
@@ -159,7 +162,6 @@ void createHandle () {
 		_setAlignment();
 	}
 	view = widget;
-	parent.contentView().addSubview_(widget);
 }
 
 NSAttributedString createString() {
@@ -179,6 +181,12 @@ NSAttributedString createString() {
 	NSAttributedString attribStr = ((NSAttributedString)new NSAttributedString().alloc()).initWithString_attributes_(str, dict);
 	attribStr.autorelease();
 	return attribStr;
+}
+
+void deregister () {
+	super.deregister ();
+	if (textView != null) display.removeWidget (textView);
+	if (imageView != null) display.removeWidget (imageView);
 }
 
 /**
@@ -241,6 +249,20 @@ public String getText () {
 	return text;
 }
 
+void register () {
+	super.register ();
+	if (textView != null) display.addWidget (textView, this);
+	if (imageView != null) display.addWidget (imageView, this);
+}
+
+void releaseHandle () {
+	super.releaseHandle ();
+	if (textView != null) textView.release();
+	if (imageView != null) imageView.release();
+	textView = null;
+	imageView = null;
+}
+
 /**
  * Controls how text and images will be displayed in the receiver.
  * The argument should be one of <code>LEFT</code>, <code>RIGHT</code>
@@ -287,16 +309,11 @@ void _setAlignment() {
 	}
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = super.setBounds(x, y, width, height, move, resize);
-	if ((result & RESIZED) != 0) {
-		if (imageView != null || textView != null) {
-			NSRect rect = view.bounds();
-			imageView.setFrame(rect);
-			textView.setFrame(rect);
-		}
+void setFont(NSFont font) {
+	if (textView != null) {
+		NSCell cell = new NSCell(textView.cell());
+		cell.setAttributedStringValue(createString());
 	}
-	return result;
 }
 
 void setForeground (float [] color) {
@@ -370,7 +387,9 @@ public void setText (String string) {
 	text = string;
 	NSCell cell = new NSCell(textView.cell());
 	cell.setAttributedStringValue(createString());
-//	((NSBox)view).setContentView(textView);
+	if (((NSBox)view).contentView().id != textView.id)
+		((NSBox)view).setContentView(textView);
 }
+
 
 }

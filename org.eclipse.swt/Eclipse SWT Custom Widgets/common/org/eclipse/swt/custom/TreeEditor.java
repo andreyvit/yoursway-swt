@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -67,6 +67,9 @@ import org.eclipse.swt.widgets.*;
 *		}
 *	});
 * </pre></code>
+*
+* @see <a href="http://www.eclipse.org/swt/snippets/#treeeditor">TreeEditor snippets</a>
+* @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
 */
 public class TreeEditor extends ControlEditor {	
 	Tree tree;
@@ -259,6 +262,11 @@ public void setColumn(int column) {
 	resize();
 }
 
+/**
+* Specifies the <code>TreeItem</code> that is to be edited.
+*
+* @param item the item to be edited
+*/
 public void setItem (TreeItem item) {
 	this.item = item;
 	resize();

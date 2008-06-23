@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -43,6 +43,10 @@ import org.eclipse.swt.widgets.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#ctabfolder">CTabFolder, CTabItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
  
 public class CTabFolder extends Composite {
@@ -2334,7 +2338,7 @@ void redrawTabs() {
 /**	 
  * Removes the listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -2373,7 +2377,7 @@ public void removeCTabFolder2Listener(CTabFolder2Listener listener) {
 /**	 
  * Removes the listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -3170,7 +3174,7 @@ public void setMRUVisible(boolean show) {
  * @param item the tab item to be selected
  * 
  * @exception IllegalArgumentException <ul>
- *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
  * </ul>
  * 
  * @exception SWTException <ul>

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,6 +29,9 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tray">Tray, TrayItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.0
  */
@@ -143,7 +146,7 @@ protected void checkSubclass () {
 	if (!isValidSubclass ()) error (SWT.ERROR_INVALID_SUBCLASS);
 }
 
-void createWidget () {
+void createHandle () {
 	NSStatusBar statusBar = NSStatusBar.systemStatusBar();
 	item = statusBar.statusItemWithLength(0);
 	if (item == null) error (SWT.ERROR_NO_HANDLES);
@@ -154,8 +157,6 @@ void createWidget () {
 	if (view == null) error (SWT.ERROR_NO_HANDLES);
 	view.initWithFrame(rect);
 	item.setView(view);
-	createJNIRef();
-	view.setTag(jniRef);
 }
 
 void destroyWidget () {
@@ -245,10 +246,7 @@ void releaseHandle () {
 	super.releaseHandle ();
 	parent = null;
 	if (item != null) item.release();
-	if (view != null) {
-		view.setTag(-1);
-		view.release();
-	}
+	if (view != null) view.release();
 	item = null;
 	view = null;
 }
@@ -410,7 +408,8 @@ void showMenu () {
 	_setToolTipText (toolTipText);
 }
 
-void mouseDown(int event) {
+void mouseDown(int id, int sel, int event) {
+	super.mouseDown(id, sel, event);
 	NSEvent nsEvent = new NSEvent(event);
 	int mask = nsEvent.modifierFlags() & OS.NSDeviceIndependentModifierFlagsMask;
 	if (mask == OS.NSControlKeyMask) {
@@ -423,12 +422,14 @@ void mouseDown(int event) {
 	}
 }
 
-void mouseUp(int event) {
+void mouseUp(int id, int sel, int theEvent) {
+	super.mouseUp(id, sel, theEvent);
 	highlight = false;
 	view.setNeedsDisplay(true);
 }
 
-void rightMouseDown(int event) {
+void rightMouseDown(int id, int sel, int theEvent) {
+	super.rightMouseDown(id, sel, theEvent);
 	showMenu();
 }
 

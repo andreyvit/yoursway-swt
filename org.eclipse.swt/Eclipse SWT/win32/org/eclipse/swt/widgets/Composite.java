@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -44,6 +44,8 @@ import org.eclipse.swt.graphics.*;
  * </p>
  *
  * @see Canvas
+ * @see <a href="http://www.eclipse.org/swt/snippets/#composite">Composite snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Composite extends Scrollable {
@@ -259,8 +261,6 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
- * 
- * @since 3.4
  */
 /*public*/ void copyArea (GC gc, int x, int y, int width, int height) {
 	checkWidget ();
@@ -886,7 +886,7 @@ void setBounds (int x, int y, int width, int height, int flags, boolean defer) {
 		defer = false;
 	}
 	if (!defer && (state & CANVAS) != 0) {
-		state &= ~RESIZE_OCCURRED | MOVE_OCCURRED;
+		state &= ~(RESIZE_OCCURRED | MOVE_OCCURRED);
 		state |= RESIZE_DEFERRED | MOVE_DEFERRED;
 	}
 	super.setBounds (x, y, width, height, flags, defer);
@@ -904,7 +904,7 @@ boolean setFixedFocus () {
 	Control [] children = _getChildren ();
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
-		if (child.setRadioFocus ()) return true;
+		if (child.setRadioFocus (false)) return true;
 	}
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
@@ -918,7 +918,7 @@ public boolean setFocus () {
 	Control [] children = _getChildren ();
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
-		if (child.setRadioFocus ()) return true;
+		if (child.setRadioFocus (false)) return true;
 	}
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
@@ -1032,7 +1032,7 @@ boolean setTabGroupFocus () {
 	Control [] children = _getChildren ();
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];
-		if (child.isTabItem () && child.setRadioFocus ()) return true;
+		if (child.isTabItem () && child.setRadioFocus (true)) return true;
 	}
 	for (int i=0; i<children.length; i++) {
 		Control child = children [i];

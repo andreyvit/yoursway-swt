@@ -6,7 +6,7 @@
 		<property name="ws" value="carbon"/>
 		<property name="os" value="macosx"/>
 		<property name="fragment" value="org.eclipse.swt.carbon.macosx"/>
-		<property name="version.suffix" value="3.3.0"/>
+		<property name="version.suffix" value="3.5.0"/>
 		<property name="full.name" value="${fragment}_${version.suffix}"/>
 		<property name="temp.folder" value="${basedir}/temp.folder"/>
 		<property name="plugin.destination" value="${basedir}"/>
@@ -90,7 +90,7 @@
 			<compilerarg line="${compilerArg}" compiler="org.eclipse.jdt.core.JDTCompilerAdapter"/> 
 		</javac>
         <property name="includes" value=""/>
-        <property name="excludes" value="**/*.java,**/library/,**/package.htm*"/>
+        <property name="excludes" value="**/*.java,**/library/,**/package.htm*,**/*._properties"/>
 		<copy todir="${temp.folder}/@dot.bin">
 			<fileset dir="${plugindir}/Eclipse SWT/carbon/" includes="${includes}" excludes="${excludes}"/>
 			<fileset dir="${plugindir}/Eclipse SWT/common/" includes="${includes}" excludes="${excludes}"/>
@@ -120,6 +120,7 @@
 			<fileset dir="${plugindir}/Eclipse SWT Program/common/" includes="${includes}" excludes="${excludes}"/>
 			<fileset dir="${plugindir}/Eclipse SWT Theme/carbon/" includes="${includes}" excludes="${excludes}"/>
 		</copy>
+		<antcall target="copy.translationfiles"/>
 
 		<mkdir dir="${build.result.folder}/@dot"/>
 		<copy todir="${build.result.folder}/@dot" failonerror="true">
@@ -258,6 +259,7 @@
 		<delete dir="${temp.folder}"/>
 		<delete dir="${build.result.folder}/@dot"/>   <!-- ensure entry into @dot target -->
 		<mkdir dir="${temp.folder}/swtdownload/"/>
+		<property name="includetranslationfiles" value="true"/>
 		<antcall target="build.jars">
 			<param name="debug" value="true"/>
 			<param name="jar.filename" value="swt-debug.jar"/>
@@ -314,4 +316,24 @@
 		<delete dir="${temp.folder}"/>
 	</target>
 
+	<target name="copy.translationfiles" if="includetranslationfiles">
+		<copy todir="${temp.folder}/@dot.bin" overwrite="true">
+			<fileset dir="${plugindir}/Eclipse SWT/common_j2se/" includes="**/*._properties" excludes=""/>
+		</copy>
+		<move todir="${temp.folder}/@dot.bin" overwrite="true">
+			<fileset dir="${temp.folder}/@dot.bin/" includes="**/*._properties" excludes=""/>
+			<mapper type="glob" from="*._properties" to="*.properties"/>
+		</move>
+	</target>
+
+	<target name="jar.plugin" depends="init">
+		<delete dir="${temp.folder}"/>
+		<mkdir dir="${temp.folder}"/>
+		<antcall target="build.jars"/>
+		<antcall target="gather.bin.parts">
+			<param name="destination.temp.folder" value="${temp.folder}/"/>
+		</antcall>
+		<jar jarfile="${plugin.destination}/${full.name}.jar" basedir="${temp.folder}/${full.name}" filesonly="true"/>
+		<delete dir="${temp.folder}"/>
+	</target>
 </project>

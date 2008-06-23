@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2007 IBM Corporation and others.
+ * Copyright (c) 2003, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -106,6 +106,7 @@ class IE extends WebBrowser {
 	static final String EVENT_MOUSEDOWN = "mousedown";	//$NON-NLS-1$
 	static final String EVENT_MOUSEOUT = "mouseout";	//$NON-NLS-1$
 	static final String EVENT_MOUSEOVER = "mouseover";	//$NON-NLS-1$
+	static final String PROTOCOL_FILE = "file://"; //$NON-NLS-1$
 	static final String PROPERTY_ALTKEY = "altKey"; //$NON-NLS-1$
 	static final String PROPERTY_BUTTON = "button"; //$NON-NLS-1$
 	static final String PROPERTY_CLIENTX = "clientX"; //$NON-NLS-1$
@@ -254,14 +255,34 @@ public void create(Composite parent, int style) {
 				case SWT.MouseWheel: {
 					/* MouseWheel events come from the DOM */
 					e.doit = false;
+					break;
+				}
+				/* 
+				 * FocusIn and Traverse are hooked to handle traversal into
+				 * and out of the Browser when it has key listeners.
+				 */
+				case SWT.FocusIn: {
+					site.setFocus();
+					break;
+				}
+				case SWT.Traverse: {
+					if (browser.isListening(SWT.KeyDown) || browser.isListening(SWT.KeyUp)) {
+						if (e.detail == SWT.TRAVERSE_TAB_PREVIOUS) {
+							browser.traverse(SWT.TRAVERSE_TAB_PREVIOUS);
+							e.doit = false;
+						}
+					}
+					break;
 				}
 			}
 		}
 	};
 	browser.addListener(SWT.Dispose, listener);
+	browser.addListener(SWT.FocusIn, listener);
 	browser.addListener(SWT.Resize, listener);
 	site.addListener(SWT.MouseWheel, listener);
-	
+	site.addListener(SWT.Traverse, listener);
+
 	OleListener oleListener = new OleListener() {
 		public void handleEvent(OleEvent event) {
 			/* callbacks are asynchronous, auto could be disposed */
@@ -270,6 +291,15 @@ public void create(Composite parent, int style) {
 					case BeforeNavigate2: {
 						Variant varResult = event.arguments[1];
 						String url = varResult.getString();
+						/*
+						* Bug in IE.  For navigations on the local machine, BeforeNavigate2's url
+						* field contains a string representing the file path in a non-URL format.
+						* In order to be consistent with the other Browser implementations, this
+						* case is detected and the file protocol is prepended to the url string.
+						*/
+						if (url.indexOf(":/") == -1 && url.indexOf(":\\") != -1) { //$NON-NLS-1$ //$NON-NLS-2$
+							url = PROTOCOL_FILE + url;
+						}
 						LocationEvent newEvent = new LocationEvent(browser);
 						newEvent.display = browser.getDisplay();
 						newEvent.widget = browser;
@@ -319,6 +349,15 @@ public void create(Composite parent, int style) {
 	
 						varResult = event.arguments[1];
 						String url = varResult.getString();
+						/*
+						* Bug in IE.  For navigations on the local machine, DocumentComplete's URL
+						* field contains a string representing the file path in a non-URL format.
+						* In order to be consistent with the other Browser implementations, this
+						* case is detected and the file protocol is prepended to the url string.
+						*/
+						if (url.indexOf(":/") == -1 && url.indexOf(":\\") != -1) { //$NON-NLS-1$ //$NON-NLS-2$
+							url = PROTOCOL_FILE + url;
+						}
 						if (html != null && url.equals(ABOUT_BLANK)) {
 							Runnable runnable = new Runnable () {
 								public void run() {
@@ -754,8 +793,7 @@ public String getText() {
 public String getUrl() {
 	int[] rgdispid = auto.getIDsOfNames(new String[] { "LocationURL" }); //$NON-NLS-1$
 	Variant pVarResult = auto.getProperty(rgdispid[0]);
-	if (pVarResult == null || pVarResult.getType() != OLE.VT_BSTR)
-		return "";
+	if (pVarResult == null || pVarResult.getType() != OLE.VT_BSTR) return ""; //$NON-NLS-1$
 	String result = pVarResult.getString();
 	pVarResult.dispose();
 	return result;
@@ -965,6 +1003,17 @@ void handleDOMEvent (OleEvent e) {
 		keyEvent.keyCode = lastKeyCode;
 		keyEvent.stateMask = mask;
 		keyEvent.stateMask &= ~lastKeyCode;		/* remove current keydown if it's a state key */
+		/*
+		* keypress events are not received for Enter, Delete and Tab, so
+		* KeyDown events are sent for them here.  Set the KeyDown event's
+		* character field and IE's lastCharCode field for these keys so
+		* that the Browser's key events are consistent with other controls.
+		*/
+		switch (lastKeyCode) {
+			case SWT.CR: lastCharCode = keyEvent.character = SWT.CR; break;
+			case SWT.DEL: lastCharCode = keyEvent.character = SWT.DEL; break;
+			case SWT.TAB: lastCharCode = keyEvent.character = SWT.TAB; break;
+		}
 		browser.notifyListeners (keyEvent.type, keyEvent);
 		if (!keyEvent.doit) {
 			rgdispid = event.getIDsOfNames(new String[] { PROPERTY_RETURNVALUE });
@@ -1004,6 +1053,19 @@ void handleDOMEvent (OleEvent e) {
 		pVarResult = event.getProperty(dispIdMember);
 		lastCharCode = pVarResult.getInt();
 		pVarResult.dispose();
+
+		/*
+		* WebSite.TranslateAccelerator() explicitly does not translate OS.VK_RETURN
+		* keys, so the PeekMessage check in the keydown handler always allows a
+		* KeyDown to be sent for this key.  However, keydown and keypress events are 
+		* both sometimes received for OS.VK_RETURN, depending on the page's focus
+		* control.  To handle this, do not send a KeyDown for OS.VK_RETURN here since
+		* one is always sent for it from the keydown handler. 
+		*/
+		if (lastCharCode == OS.VK_RETURN) {
+			event.dispose();
+			return;
+		}
 
 		Event keyEvent = new Event ();
 		keyEvent.widget = browser;

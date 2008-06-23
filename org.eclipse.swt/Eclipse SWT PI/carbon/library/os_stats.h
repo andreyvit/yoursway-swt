@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -138,6 +138,7 @@ typedef enum {
 	CFURLCreateFromFSRef_FUNC,
 	CFURLCreateFromFileSystemRepresentation_FUNC,
 	CFURLCreateStringByAddingPercentEscapes_FUNC,
+	CFURLCreateStringByReplacingPercentEscapes_FUNC,
 	CFURLCreateWithBytes_FUNC,
 	CFURLCreateWithFileSystemPath_FUNC,
 	CFURLCreateWithString_FUNC,
@@ -552,6 +553,7 @@ typedef enum {
 	HIObjectCreate_FUNC,
 	HIObjectRegisterSubclass_FUNC,
 	HIObjectSetAccessibilityIgnored_FUNC,
+	HIObjectSetAuxiliaryAccessibilityAttribute_FUNC,
 	HIScrollViewCreate_FUNC,
 	HIScrollViewSetScrollBarAutoHide_FUNC,
 	HISearchFieldChangeAttributes_FUNC,
@@ -615,6 +617,7 @@ typedef enum {
 	HIViewGetViewForMouseEvent_FUNC,
 	HIViewIsDrawingEnabled_FUNC,
 	HIViewIsVisible_FUNC,
+	HIViewRegionChanged_FUNC,
 	HIViewRemoveFromSuperview_FUNC,
 	HIViewRender_FUNC,
 	HIViewScrollRect_FUNC,
@@ -698,6 +701,7 @@ typedef enum {
 	NavDialogRun_FUNC,
 	NavDialogSetFilterTypeIdentifiers_FUNC,
 	NavDialogSetSaveFileName_FUNC,
+	NavDisposeReply_FUNC,
 	NavGetDefaultDialogCreationOptions_FUNC,
 	NewControl_FUNC,
 	NewDrag_FUNC,

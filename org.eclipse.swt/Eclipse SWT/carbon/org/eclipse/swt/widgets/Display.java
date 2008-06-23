@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -101,6 +101,8 @@ import org.eclipse.swt.graphics.*;
  * @see #readAndDispatch
  * @see #sleep
  * @see Device#dispose
+ * @see <a href="http://www.eclipse.org/swt/snippets/#display">Display snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Display extends Device {
 	
@@ -109,11 +111,11 @@ public class Display extends Device {
 	Callback actionCallback, appleEventCallback, clockCallback, commandCallback, controlCallback, accessibilityCallback, appearanceCallback;
 	Callback drawItemCallback, itemDataCallback, itemNotificationCallback, itemCompareCallback, searchCallback, trayItemCallback;
 	Callback hitTestCallback, keyboardCallback, menuCallback, mouseHoverCallback, helpCallback, observerCallback, sourceCallback;
-	Callback mouseCallback, trackingCallback, windowCallback, colorCallback, textInputCallback, releaseCallback, coreEventCallback;
+	Callback mouseCallback, trackingCallback, windowCallback, colorCallback, textInputCallback, releaseCallback, coreEventCallback, pollingCallback;
 	int actionProc, appleEventProc, clockProc, commandProc, controlProc, appearanceProc, accessibilityProc;
 	int drawItemProc, itemDataProc, itemNotificationProc, itemCompareProc, helpProc, searchProc, trayItemProc;
 	int hitTestProc, keyboardProc, menuProc, mouseHoverProc, observerProc, sourceProc;
-	int mouseProc, trackingProc, windowProc, colorProc, textInputProc, releaseProc, coreEventProc;
+	int mouseProc, trackingProc, windowProc, colorProc, textInputProc, releaseProc, coreEventProc, pollingProc;
 	EventTable eventTable, filterTable;
 	int queue, runLoop, runLoopSource, runLoopObserver, lastModifiers, lastState, lastX, lastY;
 	boolean disposing;
@@ -167,6 +169,8 @@ public class Display extends Device {
 	Callback timerCallback;
 	int timerProc;
 	boolean allowTimers = true;
+	int pollingTimer;
+	static final int POLLING_TIMEOUT = 10;
 
 	/* Current caret */
 	Caret currentCaret;
@@ -1274,7 +1278,8 @@ public Shell getActiveShell () {
 }
 
 /**
- * Returns a rectangle describing the receiver's size and location.
+ * Returns a rectangle describing the receiver's size and location. Note that
+ * on multi-monitor systems the origin can be negative.
  *
  * @return the bounding rectangle
  *
@@ -2152,6 +2157,9 @@ void initializeCallbacks () {
 	coreEventCallback = new Callback (this, "coreEventProc", 3); //$NON-NLS-1$
 	coreEventProc = coreEventCallback.getAddress ();
 	if (coreEventProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
+	pollingCallback = new Callback (this, "pollingProc", 2);
+	pollingProc = pollingCallback.getAddress ();
+	if (pollingProc == 0) SWT.error (SWT.ERROR_NO_MORE_CALLBACKS);
 
 	/* Install Event Handlers */
 	int[] mask1 = new int[] {
@@ -2403,6 +2411,12 @@ int keyboardProc (int nextHandler, int theEvent, int userData) {
 		}
 	}
 	return OS.eventNotHandledErr;
+}
+
+int pollingProc (int inTimer, int inUserData) {
+	if (grabControl == null || grabControl.isDisposed ()) return 0;
+	grabControl.sendTrackEvents ();
+	return 0;
 }
 
 /**
@@ -3188,16 +3202,17 @@ void releaseDisplay () {
 	sourceCallback.dispose ();
 	searchCallback.dispose ();
 	coreEventCallback.dispose ();
+	pollingCallback.dispose ();
 	actionCallback = appleEventCallback = caretCallback = commandCallback = appearanceCallback = null;
 	accessibilityCallback = clockCallback = controlCallback = drawItemCallback = itemDataCallback = itemNotificationCallback = null;
 	helpCallback = hitTestCallback = keyboardCallback = menuCallback = itemCompareCallback = searchCallback = trayItemCallback = null;
 	mouseHoverCallback = mouseCallback = trackingCallback = windowCallback = colorCallback = observerCallback = sourceCallback = null;
-	textInputCallback = coreEventCallback = releaseCallback = null;
+	textInputCallback = coreEventCallback = releaseCallback = pollingCallback = null;
 	actionProc = appleEventProc = caretProc = commandProc = appearanceProc = searchProc = trayItemProc = 0;
 	accessibilityProc = clockProc = controlProc = drawItemProc = itemDataProc = itemNotificationProc = itemCompareProc = 0;
 	helpProc = hitTestProc = keyboardProc = menuProc = observerProc = sourceProc = releaseProc = 0;
 	mouseHoverProc = mouseProc = trackingProc = windowProc = colorProc = coreEventProc = 0;
-	textInputProc = 0;
+	textInputProc = pollingProc = 0;
 	timerCallback.dispose ();
 	timerCallback = null;
 	timerList = null;
@@ -3264,7 +3279,7 @@ public void removeFilter (int eventType, Listener listener) {
  * is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>

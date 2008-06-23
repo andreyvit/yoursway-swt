@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2007 IBM Corporation and others.
+ * Copyright (c) 2007, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,21 +16,25 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 
 /**
- * TODO - JAVA DOC
+ * Instances of this class represent input method editors.
+ * These are typically in-line pre-edit text areas that allow
+ * the user to compose characters from Far Eastern languages
+ * such as Japanese, Chinese or Korean.
  * 
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>(none)</dd>
  * <dt><b>Events:</b></dt>
- * <dd>(none)</dd>
+ * <dd>ImeComposition</dd>
  * </dl>
  * <p>
- * .
+ * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.4
  */
-
 public class IME extends Widget {
 	Canvas parent;
 	int caretOffset;
@@ -40,17 +44,17 @@ public class IME extends Widget {
 	int [] ranges;
 	TextStyle [] styles;
 	
-	static final int WM_MSIME_MOUSE = OS.RegisterWindowMessage (new TCHAR (0, "MSIMEMouseOperation", true));
+	static final int WM_MSIME_MOUSE = OS.RegisterWindowMessage (new TCHAR (0, "MSIMEMouseOperation", true)); //$NON-NLS-1$
 	
 	static final byte [] IID_ITfInputProcessorProfiles = new byte [16];
 	static final byte [] IID_ITfDisplayAttributeProvider = new byte [16];
 	static final byte [] CLSID_TF_InputProcessorProfiles = new byte [16];
 	static final byte [] GUID_TFCAT_TIP_KEYBOARD = new byte [16];
 	static {
-		OS.IIDFromString ("{1F02B6C5-7842-4EE6-8A0B-9A24183A95CA}\0".toCharArray (), IID_ITfInputProcessorProfiles);
-		OS.IIDFromString ("{fee47777-163c-4769-996a-6e9c50ad8f54}\0".toCharArray (), IID_ITfDisplayAttributeProvider);
-		OS.IIDFromString ("{33C53A50-F456-4884-B049-85FD643ECFED}\0".toCharArray (), CLSID_TF_InputProcessorProfiles);
-		OS.IIDFromString ("{34745C63-B2F0-4784-8B67-5E12C8701A31}\0".toCharArray (), GUID_TFCAT_TIP_KEYBOARD);
+		OS.IIDFromString ("{1F02B6C5-7842-4EE6-8A0B-9A24183A95CA}\0".toCharArray (), IID_ITfInputProcessorProfiles); //$NON-NLS-1$
+		OS.IIDFromString ("{fee47777-163c-4769-996a-6e9c50ad8f54}\0".toCharArray (), IID_ITfDisplayAttributeProvider); //$NON-NLS-1$
+		OS.IIDFromString ("{33C53A50-F456-4884-B049-85FD643ECFED}\0".toCharArray (), CLSID_TF_InputProcessorProfiles); //$NON-NLS-1$
+		OS.IIDFromString ("{34745C63-B2F0-4784-8B67-5E12C8701A31}\0".toCharArray (), GUID_TFCAT_TIP_KEYBOARD); //$NON-NLS-1$
 	}
 	
 	/* TextLayout has a copy of these constants */
@@ -65,8 +69,31 @@ IME () {
 }
 
 /**
- * 
- * @see SWT
+ * Constructs a new instance of this class given its parent
+ * and a style value describing its behavior and appearance.
+ * <p>
+ * The style value is either one of the style constants defined in
+ * class <code>SWT</code> which is applicable to instances of this
+ * class, or must be built by <em>bitwise OR</em>'ing together 
+ * (that is, using the <code>int</code> "|" operator) two or more
+ * of those <code>SWT</code> style constants. The class description
+ * lists the style constants that are applicable to the class.
+ * Style bits are also inherited from superclasses.
+ * </p>
+ *
+ * @param parent a canvas control which will be the parent of the new instance (cannot be null)
+ * @param style the style of control to construct
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the parent is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the parent</li>
+ *    <li>ERROR_INVALID_SUBCLASS - if this class is not an allowed subclass</li>
+ * </ul>
+ *
+ * @see Widget#checkSubclass
+ * @see Widget#getStyle
  */
 public IME (Canvas parent, int style) {
 	super (parent, style);
@@ -75,23 +102,62 @@ public IME (Canvas parent, int style) {
 }
 
 void createWidget () {
-	text = "";
+	text = ""; //$NON-NLS-1$
 	startOffset = -1;
 	if (parent.getIME () == null) {
 		parent.setIME (this);
 	}
 }
 
+/**
+ * Returns the offset of the caret from the start of the document.
+ * The caret is within the current composition.
+ *
+ * @return the caret offset
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public int getCaretOffset () {
 	checkWidget ();
 	return startOffset + caretOffset;
 }
 
+/**
+ * Returns the commit count of the composition.  This is the
+ * number of characters that have been composed.  When the
+ * commit count is equal to the length of the composition
+ * text, then the in-line edit operation is complete.
+ * 
+ * @return the commit count
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see IME#getText
+ */
 public int getCommitCount () {
 	checkWidget ();
 	return commitCount;
 }
 
+/**
+ * Returns the offset of the composition from the start of the document.
+ * This is the start offset of the composition within the document and
+ * in not changed by the input method editor itself during the in-line edit
+ * session.
+ *
+ * @return the offset of the composition
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public int getCompositionOffset () {
 	checkWidget ();
 	return startOffset;
@@ -153,6 +219,24 @@ TF_DISPLAYATTRIBUTE getDisplayAttribute (short langid, int attInfo) {
 	return pda;
 }
 
+/**
+ * Returns the ranges for the style that should be applied during the
+ * in-line edit session.
+ * <p>
+ * The ranges array contains start and end pairs.  Each pair refers to
+ * the corresponding style in the styles array.  For example, the pair
+ * that starts at ranges[n] and ends at ranges[n+1] uses the style
+ * at styles[n/2] returned by <code>getStyles()</code>.
+ * </p>
+ * @return the ranges for the styles
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see IME#getStyles
+ */
 public int [] getRanges () {
 	checkWidget ();
 	if (ranges == null) return new int [0];
@@ -163,6 +247,24 @@ public int [] getRanges () {
 	return result;
 }
 
+/**
+ * Returns the styles for the ranges.
+ * <p>
+ * The ranges array contains start and end pairs.  Each pair refers to
+ * the corresponding style in the styles array.  For example, the pair
+ * that starts at ranges[n] and ends at ranges[n+1] uses the style
+ * at styles[n/2].
+ * </p>
+ * 
+ * @return the ranges for the styles
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see IME#getRanges
+ */
 public TextStyle [] getStyles () {
 	checkWidget ();
 	if (styles == null) return new TextStyle [0];
@@ -171,11 +273,40 @@ public TextStyle [] getStyles () {
 	return result;
 }
 
+/**
+ * Returns the composition text.
+ * <p>
+ * The text for an IME is the characters in the widget that
+ * are in the current composition. When the commit count is
+ * equal to the length of the composition text, then the
+ * in-line edit operation is complete.
+ * </p>
+ *
+ * @return the widget text
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public String getText () {
 	checkWidget ();
 	return text;
 }
 
+/**
+ * Returns <code>true</code> if the caret should be wide, and
+ * <code>false</code> otherwise.  In some languages, for example
+ * Korean, the caret is typically widened to the width of the
+ * current character in the in-line edit session.
+ * 
+ * @return the wide caret state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public boolean getWideCaret() {
 	checkWidget ();
 	int /*long*/ layout = OS.GetKeyboardLayout (0);
@@ -201,6 +332,22 @@ void releaseWidget () {
 	ranges = null;
 }
 
+/**
+ * Sets the offset of the composition from the start of the document.
+ * This is the start offset of the composition within the document and
+ * in not changed by the input method editor itself during the in-line edit
+ * session but may need to be changed by clients of the IME.  For example,
+ * if during an in-line edit operation, a text editor inserts characters
+ * above the IME, then the IME must be informed that the composition
+ * offset has changed.
+ *
+ * @return the offset of the composition
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ */
 public void setCompositionOffset (int offset) {
 	checkWidget ();
 	if (offset < 0) return;
@@ -234,11 +381,11 @@ LRESULT WM_IME_COMPOSITION (int /*long*/ wParam, int /*long*/ lParam) {
 				event.detail = SWT.COMPOSITION_CHANGED;
 				event.start = startOffset;
 				event.end = startOffset + text.length();
-				event.text = text = buffer != null ? buffer.toString () : "";
+				event.text = text = buffer != null ? buffer.toString () : ""; //$NON-NLS-1$
 				commitCount = text.length ();
 				sendEvent (SWT.ImeComposition, event);
 				String chars = text;
-				text = "";
+				text = ""; //$NON-NLS-1$
 				startOffset = -1;
 				commitCount = 0;
 				if (event.doit) {
@@ -353,7 +500,7 @@ LRESULT WM_IME_COMPOSITION (int /*long*/ wParam, int /*long*/ lParam) {
 		event.detail = SWT.COMPOSITION_CHANGED;
 		event.start = startOffset;
 		event.end = end;
-		event.text = text = buffer != null ? buffer.toString () : "";
+		event.text = text = buffer != null ? buffer.toString () : ""; //$NON-NLS-1$
 		sendEvent (SWT.ImeComposition, event);
 		if (text.length() == 0) {
 			startOffset = -1;

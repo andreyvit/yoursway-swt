@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -79,11 +79,13 @@ import org.eclipse.swt.graphics.*;
  * @see Scrollable
  * @see Scrollable#getHorizontalBar
  * @see Scrollable#getVerticalBar
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ScrollBar extends Widget {
 	NSScroller view;
 	Scrollable parent;
-	int minimum, maximum, thumb;
+	int minimum, maximum = 100, thumb = 10;
 	int increment = 1;
 	int pageIncrement = 10;
 	id target;
@@ -137,10 +139,9 @@ static int checkStyle (int style) {
 	return checkBits (style, SWT.HORIZONTAL, SWT.VERTICAL, 0, 0, 0, 0);
 }
 
-void createWidget () {
-	maximum = 100;
-	thumb = 10;
-	super.createWidget();
+void deregister () {
+	super.deregister ();
+	display.removeWidget (view);
 }
 
 /**
@@ -382,8 +383,14 @@ public void removeSelectionListener(SelectionListener listener) {
 	eventTable.unhook(SWT.DefaultSelection,listener);
 }
 
+void register () {
+	super.register ();
+	display.addWidget (view, this);
+}
+
 void releaseHandle () {
 	super.releaseHandle ();
+	if (view != null) view.release();
 	view = null;
 }
 
@@ -474,11 +481,9 @@ public void setEnabled (boolean enabled) {
 	if (enabled) {
 		if ((state & DISABLED) == 0) return;
 		state &= ~DISABLED;
-		//OS.EnableControl (handle);
 	} else {
 		if ((state & DISABLED) != 0) return;
 		state |= DISABLED;
-		//OS.DisableControl (handle);
 	}
 	view.setEnabled(enabled);
 }
@@ -624,7 +629,7 @@ public void setValues (int selection, int minimum, int maximum, int thumb, int i
 	this.minimum = minimum;
 	this.increment = increment;
 	this.pageIncrement = pageIncrement;
-	updateBar(selection, minimum, maximum, thumb);
+	updateBar (selection, minimum, maximum, thumb);
 }
 
 /**
@@ -650,13 +655,13 @@ public void setVisible (boolean visible) {
 }
 
 void updateBar(int selection, int minimum, int maximum, int thumb) {
-	NSScroller widget = (NSScroller)view;
-	selection = Math.max(minimum, Math.min(maximum - thumb, selection));
+	NSScroller widget = (NSScroller) view;
+	selection = Math.max (minimum, Math.min (maximum - thumb, selection));
 	int range = maximum - thumb - minimum;
-	float fraction = range < 0 ? 1 : (float)(selection - minimum) / range;
-	float knob = minimum == maximum ? 1 : (float)(thumb - minimum) / maximum - minimum;
-	widget.setFloatValue(fraction, knob);
-	widget.setEnabled(range > 0); 
+	float fraction = range < 0 ? 1 : (float) (selection - minimum) / range;
+	float knob = minimum == maximum ? 1 : (float) (thumb - minimum) / maximum - minimum;
+	widget.setFloatValue (fraction, knob);
+	widget.setEnabled (range > 0); 
 }
 
 }

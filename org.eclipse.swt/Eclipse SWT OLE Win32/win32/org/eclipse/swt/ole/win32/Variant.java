@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -21,11 +21,13 @@ import org.eclipse.swt.internal.win32.*;
  * a method on an OLE Control or OLE Document.
  *
  */
-public final class Variant
-{
+public final class Variant {
+	/**
+	* The size in bytes of a native VARIANT struct.
+	*/
 	public static final int sizeof = VARIANT.sizeof;
+
 	private short type; // OLE.VT_* type
-	
 	private boolean booleanData;
 	private byte    byteData;
 	private short   shortData;
@@ -180,7 +182,7 @@ public Variant(IUnknown unknown) {
  *
  * @param val the Java long value that this Variant represents
  *
- *@since 3.2
+ * @since 3.2
  */
  public Variant(long val) {
 	type = COM.VT_I8;

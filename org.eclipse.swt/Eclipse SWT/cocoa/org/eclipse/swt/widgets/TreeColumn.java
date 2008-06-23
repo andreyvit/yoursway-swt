@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,9 @@ import org.eclipse.swt.events.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -90,7 +93,10 @@ public TreeColumn (Tree parent, int style) {
  * lists the style constants that are applicable to the class.
  * Style bits are also inherited from superclasses.
  * </p>
- *
+ * <p>
+ * Note that due to a restriction on some platforms, the first column
+ * is always left aligned.
+ * </p>
  * @param parent a composite control which will be the parent of the new instance (cannot be null)
  * @param style the style of control to construct
  * @param index the zero-relative index to store the receiver in its parent
@@ -318,16 +324,18 @@ public int getWidth () {
  */
 public void pack () {
 	checkWidget ();
-//	GC gc = new GC (parent);
-//	int width = gc.stringExtent (text).x;
-	//TODO extra header
-//	int index = parent.indexOf (this);
-//	width = Math.max (width, calculateWidth (parent.childIds, index, gc, width));
-//
-//	gc.dispose ();
-//	setWidth (width + parent.getInsetWidth (id, true));
-	//TODO this only takes care of the header
-	nsColumn.sizeToFit();
+	GC gc = new GC (parent);
+	int width = gc.stringExtent (text).x;
+	//TODO header extra
+	int index = parent.indexOf (this);
+	for (int i=0; i<parent.itemCount; i++) {
+		TreeItem item = parent.items [i];
+		if (item != null && item.cached) {
+			width = Math.max (width, item.calculateWidth (index, gc, true));
+		}
+	}
+	gc.dispose ();
+	setWidth (width + parent.getInsetWidth ());
 }
 
 void releaseHandle () {
@@ -398,7 +406,10 @@ public void removeSelectionListener(SelectionListener listener) {
  * Controls how text and images will be displayed in the receiver.
  * The argument should be one of <code>LEFT</code>, <code>RIGHT</code>
  * or <code>CENTER</code>.
- *
+ * <p>
+ * Note that due to a restriction on some platforms, the first column
+ * is always left aligned.
+ * </p>
  * @param alignment the new alignment 
  *
  * @exception SWTException <ul>

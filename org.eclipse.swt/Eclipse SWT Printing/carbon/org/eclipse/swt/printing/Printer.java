@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,8 +12,11 @@ package org.eclipse.swt.printing;
 
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
-import org.eclipse.swt.graphics.Point;
-import org.eclipse.swt.internal.carbon.*;
+import org.eclipse.swt.internal.carbon.CFRange;
+import org.eclipse.swt.internal.carbon.OS;
+import org.eclipse.swt.internal.carbon.PMRect;
+import org.eclipse.swt.internal.carbon.PMResolution;
+import org.eclipse.swt.internal.carbon.Rect;
 
 /**
  * Instances of this class are used to print to a printer.
@@ -34,10 +37,11 @@ import org.eclipse.swt.internal.carbon.*;
  *
  * @see PrinterData
  * @see PrintDialog
+ * @see <a href="http://www.eclipse.org/swt/snippets/#printing">Printing snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public final class Printer extends Device {
 	PrinterData data;
-	Font defaultFont;
 	int printSession, printSettings, pageFormat;
 	boolean inPage, isGCCreated;
 	int context;
@@ -108,21 +112,6 @@ static String getCurrentPrinterName(int printSession) {
 		OS.CFRelease(printerList[0]);
 	}
 	return result;
-}
-Point getScreenDPI() {
-	int gdevice = OS.GetMainDevice();
-	int[] ptr = new int[1];
-	OS.memmove(ptr, gdevice, 4);
-	GDevice device = new GDevice();
-	OS.memmove(device, ptr[0], GDevice.sizeof);
-	OS.memmove(ptr, device.gdPMap, 4);
-	PixMap pixmap = new PixMap();
-	OS.memmove(pixmap, ptr[0], PixMap.sizeof);
-	return new Point (OS.Fix2Long (pixmap.hRes), OS.Fix2Long (pixmap.vRes));
-}
-public Font getSystemFont() {
-	checkDevice();
-	return defaultFont;
 }
 static String getString(int ptr) {
 	int length = OS.CFStringGetLength(ptr);
@@ -204,28 +193,32 @@ public Printer(PrinterData data) {
 }
 
 /**
- * Given a desired <em>client area</em> for the receiver
- * (as described by the arguments), returns the bounding
- * rectangle which would be required to produce that client
- * area.
+ * Given a <em>client area</em> (as described by the arguments),
+ * returns a rectangle, relative to the client area's coordinates,
+ * that is the client area expanded by the printer's trim (or minimum margins).
  * <p>
- * In other words, it returns a rectangle such that, if the
- * receiver's bounds were set to that rectangle, the area
- * of the receiver which is capable of displaying data
- * (that is, not covered by the "trimmings") would be the
- * rectangle described by the arguments (relative to the
- * receiver's parent).
- * </p><p>
- * Note that there is no setBounds for a printer. This method
- * is usually used by passing in the client area (the 'printable
- * area') of the printer. It can also be useful to pass in 0, 0, 0, 0.
+ * Most printers have a minimum margin on each edge of the paper where the
+ * printer device is unable to print.  This margin is known as the "trim."
+ * This method can be used to calculate the printer's minimum margins
+ * by passing in a client area of 0, 0, 0, 0 and then using the resulting
+ * x and y coordinates (which will be <= 0) to determine the minimum margins
+ * for the top and left edges of the paper, and the resulting width and height
+ * (offset by the resulting x and y) to determine the minimum margins for the
+ * bottom and right edges of the paper, as follows:
+ * <ul>
+ * 		<li>The left trim width is -x pixels</li>
+ * 		<li>The top trim height is -y pixels</li>
+ * 		<li>The right trim width is (x + width) pixels</li>
+ * 		<li>The bottom trim height is (y + height) pixels</li>
+ * </ul>
  * </p>
  * 
- * @param x the desired x coordinate of the client area
- * @param y the desired y coordinate of the client area
- * @param width the desired width of the client area
- * @param height the desired height of the client area
- * @return the required bounds to produce the given client area
+ * @param x the x coordinate of the client area
+ * @param y the y coordinate of the client area
+ * @param width the width of the client area
+ * @param height the height of the client area
+ * @return a rectangle, relative to the client area's coordinates, that is
+ * 		the client area expanded by the printer's trim (or minimum margins)
  *
  * @exception SWTException <ul>
  *    <li>ERROR_DEVICE_DISPOSED - if the receiver has been disposed</li>
@@ -361,10 +354,6 @@ protected void init () {
 	super.init();
 	colorspace = OS.CGColorSpaceCreateDeviceRGB();
 	if (colorspace == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-	int printerDPI = getDPI().y;
-	int screenDPI = getScreenDPI().y;
-	Font systemFont = getSystemFont();
-	defaultFont = Font.carbon_new(this, systemFont.handle, systemFont.style, systemFont.size * printerDPI/screenDPI);
 }
 
 /**	 
@@ -392,8 +381,6 @@ public void internal_dispose_GC(int context, GCData data) {
 protected void release () {
 	if (colorspace != 0) OS.CGColorSpaceRelease(colorspace);
 	colorspace = 0;
-	if (defaultFont != null) defaultFont.dispose();
-	defaultFont = null;
 	super.release();
 }
 
@@ -540,19 +527,15 @@ public void endPage() {
 public Point getDPI() {
 	checkDevice();
 	PMResolution resolution = new PMResolution();
-	if (OS.VERSION <= 0x1040) {
-		OS.PMGetResolution(pageFormat, resolution);
-	} else {
-		int[] printer = new int[1]; 
-		OS.PMSessionGetCurrentPrinter(printSession, printer);
-		OS.PMPrinterGetOutputResolution(printer[0], printSettings, resolution);
-	}
+	OS.PMGetResolution(pageFormat, resolution);
 	return new Point((int)resolution.hRes, (int)resolution.vRes);
 }
 
 /**
  * Returns a rectangle describing the receiver's size and location.
- * For a printer, this is the size of a physical page, in pixels.
+ * <p>
+ * For a printer, this is the size of the physical page, in pixels.
+ * </p>
  *
  * @return the bounding rectangle
  *
@@ -573,8 +556,10 @@ public Rectangle getBounds() {
 /**
  * Returns a rectangle which describes the area of the
  * receiver which is capable of displaying data.
+ * <p>
  * For a printer, this is the size of the printable area
- * of a page, in pixels.
+ * of the page, in pixels.
+ * </p>
  * 
  * @return the client area
  *
@@ -656,9 +641,6 @@ void setupNewPage() {
 		OS.CGContextTranslateCTM(context, 0, -(float)(paperRect.bottom-paperRect.top));
 		OS.CGContextSetStrokeColorSpace(context, colorspace);
 		OS.CGContextSetFillColorSpace(context, colorspace);
-		Point printerDPI = getDPI();
-		Point screenDPI = getScreenDPI();
-		OS.CGContextScaleCTM(context, screenDPI.x/printerDPI.x, screenDPI.y/printerDPI.y);
 	}
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,10 @@ import org.eclipse.swt.internal.cocoa.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#button">Button snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Button extends Control {
 	String text = "";
@@ -181,7 +185,12 @@ void createHandle () {
 	widget.initWithFrame(new NSRect());
 	int type = OS.NSMomentaryLightButton;
 	if ((style & SWT.PUSH) != 0) {
-		widget.setBezelStyle(OS.NSRoundedBezelStyle);
+		if ((style & SWT.FLAT) != 0) {
+			widget.setBezelStyle(OS.NSShadowlessSquareBezelStyle);
+//			if ((style & SWT.BORDER) == 0) widget.setShowsBorderOnlyWhileMouseInside(true);
+		} else {
+			widget.setBezelStyle(OS.NSRoundedBezelStyle);
+		}
 	} else if ((style & SWT.CHECK) != 0) {
 		type = OS.NSSwitchButton;
 		widget.setAllowsMixedState (true);
@@ -189,7 +198,12 @@ void createHandle () {
 		type = OS.NSRadioButton;		
 	} else if ((style & SWT.TOGGLE) != 0) {
 		type = OS.NSPushOnPushOffButton;
-		widget.setBezelStyle(OS.NSRegularSquareBezelStyle);
+		if ((style & SWT.FLAT) != 0) {
+			widget.setBezelStyle(OS.NSShadowlessSquareBezelStyle);
+//			if ((style & SWT.BORDER) == 0) widget.setShowsBorderOnlyWhileMouseInside(true);
+		} else {
+			widget.setBezelStyle(OS.NSRoundedBezelStyle);
+		}
 	} else if ((style & SWT.ARROW) != 0) {
 		widget.setBezelStyle(OS.NSRegularSquareBezelStyle);
 	}
@@ -198,9 +212,7 @@ void createHandle () {
 	widget.setImagePosition(OS.NSImageLeft);
 	widget.setTarget(widget);
 	widget.setAction(OS.sel_sendSelection);
-	widget.setTag(jniRef);
-	view = widget;	
-	parent.contentView().addSubview_(widget);
+	view = widget;
 	_setAlignment(style);
 }
 
@@ -277,6 +289,20 @@ public int getAlignment () {
 	return SWT.LEFT;
 }
 
+/**
+ * Returns <code>true</code> if the receiver is grayed,
+ * and false otherwise. When the widget does not have
+ * the <code>CHECK</code> style, return false.
+ *
+ * @return the grayed state of the checkbox
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public boolean getGrayed() {
 	checkWidget ();
 	if ((style &SWT.CHECK) != 0) return false;
@@ -502,10 +528,30 @@ void setDefault (boolean value) {
 //	OS.SetWindowDefaultButton (window, value ? handle : 0);
 }
 
+void setFont (NSFont font) {
+	if (text != null) {
+		((NSButton)view).setAttributedTitle(createString());
+	}
+}
+
 void setForeground (float [] color) {
 	((NSButton)view).setAttributedTitle(createString());
 }
 
+/**
+ * Sets the grayed state of the receiver.  This state change 
+ * only applies if the control was created with the SWT.CHECK
+ * style.
+ *
+ * @param grayed the new grayed state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setGrayed(boolean grayed) {
 	checkWidget ();
 	if ((style & SWT.CHECK) == 0) return;

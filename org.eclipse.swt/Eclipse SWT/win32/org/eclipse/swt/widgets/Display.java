@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -90,6 +90,8 @@ import org.eclipse.swt.graphics.*;
  * @see #readAndDispatch
  * @see #sleep
  * @see Device#dispose
+ * @see <a href="http://www.eclipse.org/swt/snippets/#display">Display snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Display extends Device {
@@ -680,7 +682,27 @@ protected void checkSubclass () {
 
 protected void checkDevice () {
 	if (thread == null) error (SWT.ERROR_WIDGET_DISPOSED);
-	if (thread != Thread.currentThread ()) error (SWT.ERROR_THREAD_INVALID_ACCESS);
+	if (thread != Thread.currentThread ()) {
+		/*
+		* Bug in IBM JVM 1.6.  For some reason, under
+		* conditions that are yet to be full understood,
+		* Thread.currentThread() is either returning null
+		* or a different instance from the one that was
+		* saved when the Display was created.  This is
+		* possibly a JIT problem because modifying this
+		* method to print logging information when the
+		* error happens seems to fix the problem.  The
+		* fix is to use operating system calls to verify
+		* that the current thread is not the Display thread.
+		* 
+		* NOTE: Despite the fact that Thread.currentThread()
+		* is used in other places, the failure has not been
+		* observed in all places where it is called. 
+		*/
+		if (threadId != OS.GetCurrentThreadId ()) {
+			error (SWT.ERROR_THREAD_INVALID_ACCESS);
+		}
+	}
 	if (isDisposed ()) error (SWT.ERROR_DEVICE_DISPOSED);
 }
 
@@ -1976,8 +1998,18 @@ int /*long*/ getMsgProc (int /*long*/ code, int /*long*/ wParam, int /*long*/ lP
 					int /*long*/ keyMsg = OS.HeapAlloc (hHeap, OS.HEAP_ZERO_MEMORY, MSG.sizeof);
 					OS.MoveMemory (keyMsg, msg, MSG.sizeof);
 					OS.PostMessage (hwndMessage, SWT_KEYMSG, wParam, keyMsg);
-					msg.message = OS.WM_NULL;
-					OS.MoveMemory (lParam, msg, MSG.sizeof);
+					switch ((int)/*64*/msg.wParam) {
+						case OS.VK_SHIFT:
+						case OS.VK_MENU:
+						case OS.VK_CONTROL:
+						case OS.VK_CAPITAL:
+						case OS.VK_NUMLOCK:
+						case OS.VK_SCROLL:
+							break;
+						default:
+							msg.message = OS.WM_NULL;
+							OS.MoveMemory (lParam, msg, MSG.sizeof);
+					}
 				}
 			}
 		}
@@ -2931,6 +2963,15 @@ int /*long*/ messageProc (int /*long*/ hwnd, int /*long*/ msg, int /*long*/ wPar
 					}
 				}
 			}
+			switch ((int)/*64*/keyMsg.wParam) {
+				case OS.VK_SHIFT:
+				case OS.VK_MENU:
+				case OS.VK_CONTROL:
+				case OS.VK_CAPITAL:
+				case OS.VK_NUMLOCK:
+				case OS.VK_SCROLL:
+					consumed = true;
+			}
 			if (consumed) {
 				int /*long*/ hHeap = OS.GetProcessHeap ();
 				OS.HeapFree (hHeap, 0, lParam);
@@ -3687,7 +3728,7 @@ public void removeFilter (int eventType, Listener listener) {
  * is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>

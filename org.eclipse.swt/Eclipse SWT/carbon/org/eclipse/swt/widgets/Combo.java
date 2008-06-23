@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -55,6 +55,9 @@ import org.eclipse.swt.internal.carbon.Rect;
  * </p>
  *
  * @see List
+ * @see <a href="http://www.eclipse.org/swt/snippets/#combo">Combo snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Combo extends Composite {
 	int menuHandle;
@@ -78,8 +81,11 @@ public class Combo extends Composite {
 	}
 	
 	static final String [] AX_ATTRIBUTES = {
-		OS.kAXTitleAttribute,
 		OS.kAXValueAttribute,
+		OS.kAXNumberOfCharactersAttribute,
+		OS.kAXSelectedTextAttribute,
+		OS.kAXSelectedTextRangeAttribute,
+		OS.kAXStringForRangeParameterizedAttribute,
 	};
 
 /**
@@ -728,6 +734,25 @@ public String [] getItems () {
 	return result;
 }
 
+/**
+ * Returns <code>true</code> if the receiver's list is visible,
+ * and <code>false</code> otherwise.
+ * <p>
+ * If one of the receiver's ancestors is not visible or some
+ * other condition makes the receiver not visible, this method
+ * may still indicate that it is considered visible even though
+ * it may not actually be showing.
+ * </p>
+ *
+ * @return the receiver's list's visibility state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public boolean getListVisible () {
 	checkWidget ();
 	if ((style & SWT.READ_ONLY) != 0) {
@@ -1014,6 +1039,7 @@ Rect getInset () {
 }
 
 int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
+	int code = OS.eventNotHandledErr;
 	if ((style & SWT.READ_ONLY) == 0) {
 		int [] stringRef = new int [1];
 		OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
@@ -1024,22 +1050,57 @@ int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userDa
 		range.length = length;
 		OS.CFStringGetCharacters (stringRef [0], range, buffer);
 		String attributeName = new String(buffer);
-		if (attributeName.equals (OS.kAXValueAttribute) || attributeName.equals (OS.kAXTitleAttribute)) {
-			String text = getText ();
-			buffer = new char [text.length ()];
-			text.getChars (0, buffer.length, buffer, 0);
+		if (attributeName.equals (OS.kAXValueAttribute)) {
+			buffer = getText(0, -1);
 			stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
 			if (stringRef [0] != 0) {
 				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
 				OS.CFRelease(stringRef [0]);
-				return OS.noErr;
+				code = OS.noErr;
+			}
+		} else if (attributeName.equals (OS.kAXNumberOfCharactersAttribute)) {
+			OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeSInt32, 4, new int [] {getCharCount()});
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXSelectedTextAttribute)) {
+			Point sel = getSelection ();
+			buffer = getText(sel.x, sel.y);
+			stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+			if (stringRef [0] != 0) {
+				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+				OS.CFRelease(stringRef [0]);
+				code = OS.noErr;
+			}
+		} else if (attributeName.equals (OS.kAXSelectedTextRangeAttribute)) {
+			Point sel = getSelection ();
+			range = new CFRange();
+			range.location = sel.x;
+			range.length = sel.y - sel.x;
+			int valueRef = OS.AXValueCreate(OS.kAXValueCFRangeType, range);
+			OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFTypeRef, 4, new int [] {valueRef});
+			OS.CFRelease(valueRef);
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXStringForRangeParameterizedAttribute)) {
+			int valueRef [] = new int [1];
+			int status = OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeParameter, OS.typeCFTypeRef, null, 4, null, valueRef);
+			if (status == OS.noErr) {
+				range = new CFRange();
+				boolean ok = OS.AXValueGetValue(valueRef[0], OS.kAXValueCFRangeType, range);
+				if (ok) {
+					buffer = getText (range.location, range.location + range.length);
+					stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+					if (stringRef [0] != 0) {
+						OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+						OS.CFRelease(stringRef [0]);
+						code = OS.noErr;
+					}
+				}
 			}
 		}
 	}
 	if (accessible != null) {
-		return accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, userData);
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
 	}
-	return OS.eventNotHandledErr;
+	return code;
 }
 
 int kEventControlActivate (int nextHandler, int theEvent, int userData) {
@@ -1115,6 +1176,20 @@ int kEventUnicodeKeyPressed (int nextHandler, int theEvent, int userData) {
 	OS.GetEventParameter (theEvent, OS.kEventParamTextInputSendKeyboardEvent, OS.typeEventRef, null, keyboardEvent.length * 4, null, keyboardEvent);
 	int [] keyCode = new int [1];
 	OS.GetEventParameter (keyboardEvent [0], OS.kEventParamKeyCode, OS.typeUInt32, null, keyCode.length * 4, null, keyCode);
+	
+	String string = OS.kAXValueChangedNotification;
+	char [] buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	int stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.AXNotificationHIObjectNotify(stringRef, handle, 0);
+	OS.CFRelease(stringRef);
+	string = OS.kAXSelectedTextChangedNotification;
+	buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.AXNotificationHIObjectNotify(stringRef, handle, 0);
+	OS.CFRelease(stringRef);
+
 	if (hooks (SWT.Verify) || filters (SWT.Verify)
 			|| hooks (SWT.Modify) || filters (SWT.Modify)) {
 		int [] modifiers = new int [1];
@@ -1179,6 +1254,10 @@ public void paste () {
 	start += newText.length ();
 	setSelection (new Point (start, start));
 	sendEvent (SWT.Modify);
+}
+
+boolean pollTrackEvent() {
+	return true;
 }
 
 void releaseHandle () {
@@ -1513,6 +1592,7 @@ int setBounds (int x, int y, int width, int height, boolean move, boolean resize
 	}
 	return result;
 }
+
 /**
  * Sets the text of the item in the receiver's list at the given
  * zero-relative index to the string argument.
@@ -1603,6 +1683,24 @@ public void setItems (String [] items) {
 	}
 }
 
+/**
+ * Marks the receiver's list as visible if the argument is <code>true</code>,
+ * and marks it invisible otherwise.
+ * <p>
+ * If one of the receiver's ancestors is not visible or some
+ * other condition makes the receiver not visible, marking
+ * it visible may not actually cause it to be displayed.
+ * </p>
+ *
+ * @param visible the new visibility state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setListVisible (boolean visible) {
 	checkWidget ();
 	if ((style & SWT.READ_ONLY) != 0) {

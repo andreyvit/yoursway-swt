@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,6 +24,9 @@ import java.util.Hashtable;
  * Instances of this class represent programs and
  * their associated file extensions in the operating
  * system.
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#program">Program snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public final class Program {
 	String name;
@@ -344,13 +347,12 @@ public static Program [] getPrograms () {
 }
 
 /**
- * Launches the executable associated with the file in
- * the operating system.  If the file is an executable,
- * then the executable is launched.  Note that a <code>Display</code>
- * must already exist to guarantee that this method returns
- * an appropriate result.
+ * Launches the operating system executable associated with the file or
+ * URL (http:// or https://).  If the file is an executable then the
+ * executable is launched.  Note that a <code>Display</code> must already
+ * exist to guarantee that this method returns an appropriate result.
  *
- * @param fileName the file or program name
+ * @param fileName the file or program name or URL (http:// or https://)
  * @return <code>true</code> if the file is launched, otherwise <code>false</code>
  * 
  * @exception IllegalArgumentException <ul>

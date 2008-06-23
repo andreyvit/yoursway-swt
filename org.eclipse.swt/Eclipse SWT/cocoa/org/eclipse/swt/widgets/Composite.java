@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -43,6 +43,8 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p>
  *
  * @see Canvas
+ * @see <a href="http://www.eclipse.org/swt/snippets/#composite">Composite snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Composite extends Scrollable {
 	Layout layout;
@@ -92,16 +94,12 @@ Control [] _getChildren () {
 	NSArray views = contentView().subviews();
 	int count = views.count();
 	Control [] children = new Control [count];
+	if (count == 0) return children;
 	int j = 0;
 	for (int i=0; i<count; i++){
-		int tag = new NSView(views.objectAtIndex(i)).tag();
-		if (tag != 0 && tag != -1) {
-			Object widget = OS.JNIGetObject(tag);
-			if (widget != null && widget != this) {
-				if (widget instanceof Control) {
-					children [j++] = (Control) widget;
-				}
-			}
+		Widget widget = display.getWidget (views.objectAtIndex (count - i - 1));
+		if (widget != null && widget != this && widget instanceof Control) {
+			children [j++] = (Control) widget;
 		}
 	}
 	if (j == count) return children;
@@ -128,11 +126,11 @@ Control [] _getTabList () {
 	return tabList;
 }
 
-boolean acceptsFirstResponder () {
+boolean acceptsFirstResponder (int id, int sel) {
 	if ((state & CANVAS) != 0) {
 		return ((style & SWT.NO_FOCUS) == 0);
 	}
-	return super.acceptsFirstResponder ();
+	return super.acceptsFirstResponder (id, sel);
 }
 
 
@@ -226,15 +224,7 @@ Control [] computeTabList () {
 	return result;
 }
 
-NSView contentView () {
-	return view;
-}
-
 void createHandle () {
-	createHandle (parent.contentView());
-}
-
-void createHandle (NSView parent) {
 	state |= CANVAS;
 	NSRect rect = new NSRect();
 	if ((style & (SWT.V_SCROLL | SWT.H_SCROLL)) != 0 || hasBorder ()) {
@@ -244,22 +234,23 @@ void createHandle (NSView parent) {
 		if ((style & SWT.H_SCROLL) != 0) scrollWidget.setHasHorizontalScroller(true);
 		if ((style & SWT.V_SCROLL) != 0) scrollWidget.setHasVerticalScroller(true);
 		scrollWidget.setBorderType(hasBorder() ? OS.NSBezelBorder : OS.NSNoBorder);
-		scrollWidget.setTag(jniRef);
 		scrollView = scrollWidget;
 		rect.width = rect.height = 100000;
 	}
 	SWTView widget = (SWTView)new SWTView().alloc();
 	widget.initWithFrame (rect);
 //	widget.setFocusRingType(OS.NSFocusRingTypeExterior);
-	widget.setTag(jniRef);
 	view = widget;
-	if (scrollView != null) {
-//		view.setAutoresizingMask (OS.NSViewWidthSizable | OS.NSViewHeightSizable);
-		scrollView.setDocumentView(view);
-		if (parent != null) parent.addSubview_(scrollView);
-	} else {
-		if (parent != null) parent.addSubview_(view);
+}
+
+void drawRect (int id, NSRect rect) {
+	if ((state & CANVAS) != 0) {
+		if ((style & SWT.NO_BACKGROUND) == 0) {
+			NSGraphicsContext context = NSGraphicsContext.currentContext();
+			fillBackground (view, context, rect);
+		}
 	}
+	super.drawRect (id, rect);
 }
 
 Composite findDeferredControl () {
@@ -468,9 +459,28 @@ public boolean isLayoutDeferred () {
 	return findDeferredControl () != null;
 }
 
+boolean isOpaque (int id, int sel) {
+	if ((state & CANVAS) != 0) {
+		if (id == view.id) {
+			if (region == null && background != null && background.handle[3] == 1) {
+				return true;
+			}
+		}
+	}
+	return super.isOpaque (id, sel);
+}
+
 boolean isTabGroup () {
 	if ((state & CANVAS) != 0) return true;
 	return super.isTabGroup ();
+}
+
+void keyDown(int id, int sel, int theEvent) {
+	/* needed to avoid bells */
+	if (hasFocus () && (state & CANVAS) != 0) {
+		return;
+	}
+	super.keyDown(id, sel, theEvent);
 }
 
 /**
@@ -670,6 +680,16 @@ Point minimumSize (int wHint, int Hint, boolean changed) {
 	return new Point (width, height);
 }
 
+void pageDown(int id, int sel, int sender) {
+	if ((state & CANVAS) != 0) return;
+	super.pageDown(id, sel, sender);
+}
+
+void pageUp(int id, int sel, int sender) {
+	if ((state & CANVAS) != 0) return;
+	super.pageUp(id, sel, sender);
+}
+
 void releaseChildren (boolean destroy) {
 	Control [] children = _getChildren ();
 	for (int i=0; i<children.length; i++) {
@@ -689,6 +709,56 @@ void releaseWidget () {
 
 void removeControl (Control control) {
 	fixTabList (control);
+}
+
+void resized () {
+	super.resized ();
+	if (layout != null) {
+		markLayout (false, false);
+		updateLayout (false);
+	}
+}
+
+void scrollWheel (int id, int sel, int theEvent) {
+	if ((state & CANVAS) != 0) {
+		NSView view = scrollView != null ? scrollView : this.view;
+		if (id == view.id) {
+			NSEvent nsEvent = new NSEvent(theEvent);
+			float delta = nsEvent.deltaY();
+			if (delta != 0) {
+				if (hooks (SWT.MouseWheel) || filters (SWT.MouseWheel)) {
+					if (!sendMouseEvent(nsEvent, SWT.MouseWheel, true)) {
+						return;
+					}
+				}
+			}
+			boolean handled = false;
+			ScrollBar bar = verticalBar;
+			if (delta != 0 && bar != null && bar.getEnabled ()) {
+				int selection = Math.max (0, (int)(0.5f + bar.getSelection () - bar.getIncrement () * delta));
+				bar.setSelection (selection);
+				Event event = new Event ();
+			    event.detail = delta > 0 ? SWT.PAGE_UP : SWT.PAGE_DOWN;	
+				bar.sendEvent (SWT.Selection, event);
+				handled = true;
+			}
+			bar = horizontalBar;
+			delta = nsEvent.deltaX ();
+			if (delta != 0 && bar != null && bar.getEnabled ()) {
+				int selection = Math.max (0, (int)(0.5f + bar.getSelection () - bar.getIncrement () * delta));
+				bar.setSelection (selection);
+				Event event = new Event ();
+			    event.detail = delta > 0 ? SWT.PAGE_UP : SWT.PAGE_DOWN;	
+				bar.sendEvent (SWT.Selection, event);
+				handled = true;
+			}
+			if (!handled) view.superview().scrollWheel(nsEvent);
+			return;
+		}
+		callSuper(id, sel, theEvent);
+		return;
+	}
+	super.scrollWheel (id, sel, theEvent);
 }
 
 /**
@@ -715,15 +785,6 @@ public void setBackgroundMode (int mode) {
 	for (int i = 0; i < children.length; i++) {
 		children [i].updateBackgroundMode ();
 	}
-}
-
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = super.setBounds (x, y, width, height, move, resize);
-	if (layout != null && (result & RESIZED) != 0) {
-		markLayout (false, false);
-		updateLayout (false);
-	}
-	return result;
 }
 
 public boolean setFocus () {

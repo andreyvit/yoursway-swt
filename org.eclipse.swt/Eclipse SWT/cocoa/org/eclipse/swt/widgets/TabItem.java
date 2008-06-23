@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,6 +27,9 @@ import org.eclipse.swt.internal.cocoa.*;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tabfolder">TabFolder, TabItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class TabItem extends Item {
 	TabFolder parent;
@@ -139,7 +142,7 @@ public Rectangle getBounds() {
 		NSValue val = new NSValue (posValue);
 		NSPoint pt = val.pointValue ();
 		NSWindow window = parent.view.window ();
-		pt.y = window.screen ().frame ().height - pt.y;
+		pt.y = display.getPrimaryFrame().height - pt.y;
 		pt = parent.view.convertPoint_fromView_ (pt, null);
 		pt = window.convertScreenToBase (pt);
 		result.x = (int) pt.x;
@@ -249,14 +252,21 @@ public void setControl (Control control) {
 	int index = parent.indexOf (this);
 	if (index != parent.getSelectionIndex ()) {
 		if (newControl != null) newControl.setVisible (false);
-		return;
+	} else {
+		if (newControl != null) {
+			newControl.setVisible (true);
+		}
+		if (oldControl != null) oldControl.setVisible (false);
 	}
+	NSView view;
 	if (newControl != null) {
-//		nsItem.setView(control.topView ());
-		newControl.setBounds (parent.getClientArea ());
-		newControl.setVisible (true);
+		view = newControl.topView();
+	} else {
+		view = (NSView)new NSView().alloc();
+		view.initWithFrame (new NSRect());
+		view.autorelease();
 	}
-	if (oldControl != null) oldControl.setVisible (false);
+	nsItem.setView (view);
 }
 
 public void setImage (Image image) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,6 +14,18 @@ import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.CloneableCompatibility;
 
+/**
+ * <code>StyleRange</code> defines a set of styles for a specified
+ * range of text.
+ * <p>
+ * The hashCode() method in this class uses the values of the public
+ * fields to compute the hash value. When storing instances of the
+ * class in hashed collections, do not modify these fields after the
+ * object has been inserted.
+ * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ */
 public class StyleRange extends TextStyle implements CloneableCompatibility {
 	
 	/**
@@ -46,9 +58,9 @@ public StyleRange() {
 /** 
  * Create a new style range from an existing text style.
  *
- *@param style the text style to copy
+ * @param style the text style to copy
  *
- *@since 3.4
+ * @since 3.4
  */
 public StyleRange(TextStyle style) {
 	super(style);

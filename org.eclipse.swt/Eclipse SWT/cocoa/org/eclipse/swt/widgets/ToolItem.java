@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,6 +32,9 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#toolbar">ToolBar, ToolItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ToolItem extends Item {
 	NSView view;
@@ -46,9 +49,8 @@ public class ToolItem extends Item {
 	static final int DEFAULT_WIDTH = 24;
 	static final int DEFAULT_HEIGHT = 22;
 	static final int DEFAULT_SEPARATOR_WIDTH = 6;
-	static final int INSET = 5;
+	static final int INSET = 3;
 	static final int ARROW_WIDTH = 5;
-	static final int ARROW_INSET = 2;
 
 /**
  * Constructs a new instance of this class given its parent
@@ -188,39 +190,45 @@ Point computeSize () {
 			height = Math.max (height, control.getMininumHeight ());
 		}
 	} else {
-		((NSButton)button).sizeToFit ();
-		NSRect frame = button.frame();
-		width = (int)frame.width + INSET;
-		height = (int)frame.height;
-		if (arrow != null) {
-			width += ARROW_INSET + ARROW_WIDTH;
+		if (text.length () != 0 || image != null) {
+			((NSButton)button).sizeToFit ();
+			NSRect frame = button.frame();
+			width = (int)frame.width;
+			height = (int)frame.height;
+			view.setNeedsDisplay(true);
+		} else {
+			width = DEFAULT_WIDTH;
+			height = DEFAULT_HEIGHT;
 		}
-		view.setNeedsDisplay(true);
+		if (arrow != null) {
+			width += ARROW_WIDTH;
+		}
+		width += INSET * 2;
+		height += INSET * 2;
 	}
 	return new Point (width, height);
 }
 
-void createWidget() {
-	createJNIRef ();
+void createHandle () {
 	if ((style & SWT.SEPARATOR) != 0) {
 		SWTBox widget = (SWTBox)new SWTBox().alloc();
 		widget.initWithFrame(new NSRect());
 		widget.setBoxType(OS.NSBoxSeparator);
-		widget.setTag(jniRef);
 		view = widget;
 	} else {
 		SWTView widget = (SWTView)new SWTView().alloc();
 		widget.initWithFrame(new NSRect());
-		widget.setTag(parent.jniRef);
 		parent.contentView().addSubview_(widget);
 		button = (NSButton)new SWTButton().alloc();
 		button.initWithFrame(new NSRect());
 		button.setBordered(false);
 		button.setAction(OS.sel_sendSelection);
 		button.setTarget(button);
-		button.setTag(jniRef);
+		Font font = parent.font != null ? parent.font : parent.defaultFont ();
+		button.setFont(font.handle);
 		button.setImagePosition(OS.NSImageOverlaps);
-		button.setTitle(NSString.stringWith(""));
+		NSString emptyStr = NSString.stringWith("");
+		button.setTitle(emptyStr);
 		button.setEnabled(parent.getEnabled());
 		widget.addSubview_(button);
 		if ((style & SWT.DROP_DOWN) != 0) {
@@ -229,13 +237,47 @@ void createWidget() {
 			arrow.setBordered(false);
 			arrow.setAction(OS.sel_sendArrowSelection);
 			arrow.setTarget(arrow);
-			arrow.setTag(jniRef);
+			arrow.setTitle(emptyStr);
 			arrow.setEnabled(parent.getEnabled());
 			widget.addSubview_(arrow);
 		}
 		view = widget;
 	}
 }
+
+NSAttributedString createString() {
+	NSMutableDictionary dict = NSMutableDictionary.dictionaryWithCapacity(4);
+	Color foreground = parent.foreground;
+	if (foreground != null) {
+		NSColor color = NSColor.colorWithDeviceRed(foreground.handle[0], foreground.handle[1], foreground.handle[2], 1);
+		dict.setObject(color, OS.NSForegroundColorAttributeName());
+	}
+	Font font = parent.font;
+	if (font != null) {
+		dict.setObject(font.handle, OS.NSFontAttributeName());
+	}
+	char [] chars = new char [text.length ()];
+	text.getChars (0, chars.length, chars, 0);
+	int length = fixMnemonic (chars);
+
+	NSMutableParagraphStyle pStyle = (NSMutableParagraphStyle)new NSMutableParagraphStyle().alloc().init();
+	pStyle.autorelease();
+	pStyle.setAlignment(OS.NSCenterTextAlignment);
+	dict.setObject(pStyle, OS.NSParagraphStyleAttributeName());
+	
+	NSString str = NSString.stringWithCharacters(chars, length);
+	NSAttributedString attribStr = ((NSAttributedString)new NSAttributedString().alloc()).initWithString_attributes_(str, dict);
+	attribStr.autorelease();
+	return attribStr;
+}
+
+void deregister () {
+	super.deregister ();
+	display.removeWidget(view);
+	if (button != null) display.removeWidget (button);
+	if (arrow != null) display.removeWidget (arrow);
+}
+
 void destroyWidget() {
 	parent.destroyItem(this);
 	super.destroyWidget();
@@ -243,7 +285,7 @@ void destroyWidget() {
 
 void drawRect(int id, NSRect rect) {
 	super.drawRect(id, rect);
-	if (getSelection ()) {
+	if (id == view.id && getSelection ()) {
 		NSRect bounds = view.bounds();
 		NSGraphicsContext context = NSGraphicsContext.currentContext();
 		context.saveGraphicsState();
@@ -469,6 +511,17 @@ public boolean isEnabled () {
 	return getEnabled () && parent.isEnabled ();
 }
 
+int menuForEvent (int event) {
+	return parent.menuForEvent(event);
+}
+
+void register () {
+	super.register ();
+	display.addWidget (view, this);
+	if (button != null) display.addWidget (button, this);
+	if (arrow != null) display.addWidget (arrow, this);
+}
+
 void releaseParent () {
 	super.releaseParent ();
 	setVisible (false);
@@ -476,18 +529,9 @@ void releaseParent () {
 
 void releaseHandle () {
 	super.releaseHandle ();
-	if (view != null) {
-		OS.objc_msgSend(view.id, OS.sel_setTag_1, -1);
-		view.release();
-	}
-	if (button != null) {
-		OS.objc_msgSend(button.id, OS.sel_setTag_1, -1);
-		button.release();
-	}
-	if (arrow != null) {
-		OS.objc_msgSend(arrow.id, OS.sel_setTag_1, -1);
-		arrow.release();
-	}
+	if (view != null) view.release();
+	if (button != null) button.release();
+	if (arrow != null) arrow.release();
 	view = button = arrow = null;
 	parent = null;
 }
@@ -561,10 +605,17 @@ void setBounds (int x, int y, int width, int height) {
 	rect.width = width;
 	rect.height = height;
 	view.setFrame(rect);
+	if (button != null) {
+		rect.x = 0;
+		rect.y = 0;
+		rect.width = width - (arrow != null ? ARROW_WIDTH : 0);
+		rect.height = height;
+		button.setFrame(rect);
+	}
 	if (arrow != null) {
 		rect = button.frame();
 		NSRect arrowRect = new NSRect();
-		arrowRect.x = rect.width + ARROW_INSET;
+		arrowRect.x = width - ARROW_WIDTH;
 		arrowRect.width = ARROW_WIDTH;
 		arrowRect.height = rect.height;
 		arrow.setFrame(arrowRect);
@@ -748,8 +799,8 @@ public void setText (String string) {
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if ((style & SWT.SEPARATOR) != 0) return;
 	super.setText (string);
-	NSString str = NSString.stringWith(string);
-	((NSButton)button).setTitle(str);
+	((NSButton)button).setAttributedTitle(createString());
+	
 	parent.relayout ();
 	if (text.length() != 0 && image != null) {
 		if ((parent.style & SWT.RIGHT) != 0) {
@@ -758,7 +809,7 @@ public void setText (String string) {
 			((NSButton)button).setImagePosition(OS.NSImageAbove);		
 		}
 	} else {
-		((NSButton)button).setImagePosition(OS.NSImageOverlaps);			
+		((NSButton)button).setImagePosition(text.length() != 0 ? OS.NSNoImage : OS.NSImageOnly);			
 	}
 }
 
@@ -776,7 +827,7 @@ public void setText (String string) {
 public void setToolTipText (String string) {
 	checkWidget();
 	toolTipText = string;
-	view.setToolTip(NSString.stringWith(string));
+	view.setToolTip(string != null ? NSString.stringWith(string) : null);
 }
 
 void setVisible (boolean visible) {
@@ -827,8 +878,8 @@ void updateImage (boolean layout) {
 		} else {
 			((NSButton)button).setImagePosition(OS.NSImageAbove);		
 		}
-	} else {
-		((NSButton)button).setImagePosition(OS.NSImageOverlaps);			
+	} else {	
+		((NSButton)button).setImagePosition(text.length() != 0 ? OS.NSNoImage : OS.NSImageOnly);		
 	}
 	parent.relayout();
 }

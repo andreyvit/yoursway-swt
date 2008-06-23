@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,6 +29,9 @@ import org.eclipse.swt.graphics.*;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class TreeItem extends Item {
 	Tree parent;
@@ -43,6 +46,16 @@ public class TreeItem extends Item {
 	Font font;
 	Font[] cellFont;
 	int width = -1;
+	/**
+	 * the handle to the OS resource 
+	 * (Warning: This field is platform dependent)
+	 * <p>
+	 * <b>IMPORTANT:</b> This field is <em>not</em> part of the SWT
+	 * public API. It is marked public only so that it can be shared
+	 * within the packages provided by SWT. It is not available on all
+	 * platforms and should never be accessed from application code.
+	 * </p>
+	 */
 	//
 	SWTTreeItem handle;
 	
@@ -208,31 +221,46 @@ static int checkIndex (int index) {
 	return index;
 }
 
-int calculateWidth (int index, GC gc) {
-	if (index == 0 && width != -1) return width;
+int calculateWidth (int index, GC gc, boolean recurse) {
 	int width = 0;
-	Image image = getImage (index);
-	String text = getText (index);
-	gc.setFont (getFont (index));
-//	if (image != null) width += image.getBounds ().width + parent.getGap ();
-	if (text != null && text.length () > 0) width += gc.stringExtent (text).x;
-//	if (parent.hooks (SWT.MeasureItem)) {
-//		Event event = new Event ();
-//		event.item = this;
-//		event.index = index;
-//		event.gc = gc;
-//		short [] height = new short [1];
-//		OS.GetDataBrowserTableViewRowHeight (parent.handle, height);
-//		event.width = width;
-//		event.height = height [0];
-//		parent.sendEvent (SWT.MeasureItem, event);
-//		if (parent.itemHeight < event.height) {
-//			parent.itemHeight = event.height;
-//			OS.SetDataBrowserTableViewRowHeight (parent.handle, (short) event.height);
-//		}
-//		width = event.width;
-//	}
-	if (index == 0) this.width = width;
+	if (index == 0 && this.width != -1) {
+		width = this.width;
+	} else {
+		Image image = getImage (index);
+		String text = getText (index);
+		gc.setFont (getFont (index));
+	//	if (image != null) width += image.getBounds ().width + parent.getGap ();
+		if (text != null && text.length () > 0) width += gc.stringExtent (text).x;
+	//	if (parent.hooks (SWT.MeasureItem)) {
+	//		Event event = new Event ();
+	//		event.item = this;
+	//		event.index = index;
+	//		event.gc = gc;
+	//		short [] height = new short [1];
+	//		OS.GetDataBrowserTableViewRowHeight (parent.handle, height);
+	//		event.width = width;
+	//		event.height = height [0];
+	//		parent.sendEvent (SWT.MeasureItem, event);
+	//		if (parent.itemHeight < event.height) {
+	//			parent.itemHeight = event.height;
+	//			OS.SetDataBrowserTableViewRowHeight (parent.handle, (short) event.height);
+	//		}
+	//		width = event.width;
+	//	}
+		if (index == 0) {
+			int level = ((NSOutlineView)parent.view).levelForItem(handle);
+			width += parent.levelIndent * level;
+			this.width = width;
+		}
+	}
+	if (recurse && expanded) {
+		for (int i = 0; i < items.length; i++) {
+			TreeItem item = items [i];
+			if (item != null && item.cached) {
+				width = Math.max(width, item.calculateWidth(index, gc, recurse));
+			}
+		}
+	}
 	return width;
 }
 
@@ -319,7 +347,7 @@ NSAttributedString createString(int index) {
 	}
 	Font font = cellFont != null ? cellFont [index] : null;
 	if (font == null) font = this.font;
-//	if (font == null) font = parent.font;
+	if (font == null) font = parent.font;
 	if (font != null) {
 		dict.setObject(font.handle, OS.NSFontAttributeName());
 	}
@@ -337,6 +365,11 @@ NSAttributedString createString(int index) {
 	NSAttributedString attribStr = ((NSAttributedString)new NSAttributedString().alloc()).initWithString_attributes_(str, dict);
 	attribStr.autorelease();
 	return attribStr;
+}
+
+void deregister () {
+	super.deregister ();
+	display.removeWidget (handle);
 }
 
 void destroyWidget () {
@@ -870,6 +903,11 @@ public int indexOf (TreeItem item) {
 	return -1;
 }
 
+void register () {
+	super.register ();
+	display.addWidget (handle, this);
+}
+
 void releaseChildren (boolean destroy) {
 	for (int i=0; i<items.length; i++) {
 		TreeItem item = items [i];
@@ -1066,7 +1104,9 @@ public void setFont (Font font) {
 	this.font = font;
 	if (oldFont != null && oldFont.equals (font)) return;
 	cached = true;
-	((NSOutlineView)parent.view).reloadItem_(handle);
+	NSOutlineView view = (NSOutlineView)parent.view;
+	NSRect rect = view.rectOfRow(parent.indexOf(this));
+	view.setNeedsDisplayInRect(rect);
 }
 
 /**
@@ -1104,7 +1144,9 @@ public void setFont (int index, Font font) {
 	cellFont [index] = font;
 	if (oldFont != null && oldFont.equals (font)) return;
 	cached = true;
-	((NSOutlineView)parent.view).reloadItem_(handle);
+	NSOutlineView view = (NSOutlineView)parent.view;
+	NSRect rect = view.rectOfRow(parent.indexOf(this));
+	view.setNeedsDisplayInRect(rect);
 }
 
 /**

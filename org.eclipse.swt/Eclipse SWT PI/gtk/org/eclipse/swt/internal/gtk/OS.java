@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2008 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -10587,6 +10587,16 @@ public static final boolean pango_layout_line_x_to_index(int /*long*/ line, int 
 		lock.unlock();
 	}
 }
+public static final native int _pango_layout_line_get_resolved_dir(int /*long*/ line);
+public static final int pango_layout_line_get_resolved_dir(int /*long*/ line) {
+	lock.lock();
+	try {
+		return _pango_layout_line_get_resolved_dir(line);
+	} finally {
+		lock.unlock();
+	}
+}
+
 public static final native int /*long*/ _pango_layout_new(int /*long*/ context);
 public static final int /*long*/ pango_layout_new(int /*long*/ context) {
 	lock.lock();

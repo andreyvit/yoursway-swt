@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -36,6 +36,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#spinner">Spinner snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -49,13 +53,11 @@ public class Spinner extends Composite {
 	static int GAP = 3;
 	
 	/**
-	* The maximum number of characters that can be entered
-	* into a text widget.
-	* <p>
-	* Note that this value is platform dependent, based upon
-	* the native widget implementation.
-	* </p>
-	*/
+	 * the operating system limit for the number of characters
+	 * that the text field in an instance of this class can hold
+	 * 
+	 * @since 3.4
+	 */
 	public static final int LIMIT;
 	
 	/*
@@ -526,6 +528,20 @@ int getSelectionText (boolean [] parseFail) {
 	return -1;
 }
 
+/**
+ * Returns a string containing a copy of the contents of the
+ * receiver's text field, or an empty string if there are no
+ * contents.
+ *
+ * @return the receiver's text
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public String getText() {
 	int [] ptr = new int [1];
 	int [] actualSize = new int [1];
@@ -539,6 +555,23 @@ public String getText() {
 	return new String (buffer);
 }
 
+/**
+ * Returns the maximum number of characters that the receiver's
+ * text field is capable of holding. If this has not been changed
+ * by <code>setTextLimit()</code>, it will be the constant
+ * <code>Spinner.LIMIT</code>.
+ * 
+ * @return the text limit
+ * 
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @see #LIMIT
+ * 
+ * @since 3.4
+ */
 public int getTextLimit () {
 	checkWidget();
     return textLimit;
@@ -588,7 +621,7 @@ Rect inset () {
 }
 
 int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
-	int code = OS.CallNextEventHandler (nextHandler, theEvent);
+	int code = OS.eventNotHandledErr;
 	int [] stringRef = new int [1];
 	OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
 	int length = 0;
@@ -603,25 +636,20 @@ int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userDa
 		buffer = new char [roleText.length ()];
 		roleText.getChars (0, buffer.length, buffer, 0);
 		stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
-		if (attributeName.equals (OS.kAXRoleAttribute)) {
-			if (stringRef [0] != 0) {
+		if (stringRef [0] != 0) {
+			if (attributeName.equals (OS.kAXRoleAttribute)) {
 				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
-				OS.CFRelease(stringRef [0]);
-				return OS.noErr;
-			}
-		}
-		if (attributeName.equals (OS.kAXRoleDescriptionAttribute)) {
-			if (stringRef [0] != 0) {
+			} else { // kAXRoleDescriptionAttribute
 				int stringRef2 = OS.HICopyAccessibilityRoleDescription (stringRef [0], 0);
 				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, new int [] {stringRef2});
-				OS.CFRelease(stringRef [0]);
 				OS.CFRelease(stringRef2);
-				return OS.noErr;
 			}
+			OS.CFRelease(stringRef [0]);
+			code = OS.noErr;
 		}
 	}
 	if (accessible != null) {
-		return accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, userData);
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
 	}
 	return code;
 }
@@ -704,6 +732,17 @@ int kEventUnicodeKeyPressed (int nextHandler, int theEvent, int userData) {
 	return result;
 }
 
+int kEventTextInputUpdateActiveInputArea (int nextHandler, int theEvent, int userData) {
+	int [] length = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamTextInputSendText, OS.typeUnicodeText, null, 0, length, (char [])null);
+	int [] fixed_length = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamTextInputSendFixLen, OS.typeLongInteger, null, 4, null, fixed_length);
+	if (fixed_length [0] == -1 || fixed_length [0] == length [0]) {
+		postEvent (SWT.Modify);
+	}
+	return OS.eventNotHandledErr;
+}
+
 /**
  * Pastes text from clipboard.
  * <p>
@@ -723,6 +762,10 @@ public void paste () {
 	short [] selection = new short [2];
 	if (OS.GetControlData (textHandle, (short)OS.kControlEntireControl, OS.kControlEditTextSelectionTag, 4, selection, null) != OS.noErr) return;
 	setText (text, selection [0], selection [1], true);
+}
+
+boolean pollTrackEvent() {
+	return true;
 }
 
 public void redraw () {
@@ -985,11 +1028,11 @@ public void setMaximum (int value) {
 
 /**
  * Sets the minimum value that the receiver will allow.  This new
- * value will be ignored if it is negative or is not less than the receiver's
+ * value will be ignored if it is not less than the receiver's
  * current maximum value.  If the new minimum is applied then the receiver's
  * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new minimum, which must be nonnegative and less than the current maximum
+ * @param value the new minimum, which must be less than the current maximum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -1140,6 +1183,28 @@ char [] setText (String string, int start, int end, boolean notify) {
 	return buffer;
 }
 
+/**
+ * Sets the maximum number of characters that the receiver's
+ * text field is capable of holding to be the argument.
+ * <p>
+ * To reset this value to the default, use <code>setTextLimit(Spinner.LIMIT)</code>.
+ * Specifying a limit value larger than <code>Spinner.LIMIT</code> sets the
+ * receiver's limit to <code>Spinner.LIMIT</code>.
+ * </p>
+ * @param limit new text limit
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_CANNOT_BE_ZERO - if the limit is zero</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @see #LIMIT
+ * 
+ * @since 3.4
+ */
 public void setTextLimit (int limit) {
 	checkWidget();
 	if (limit == 0) error (SWT.ERROR_CANNOT_BE_ZERO);

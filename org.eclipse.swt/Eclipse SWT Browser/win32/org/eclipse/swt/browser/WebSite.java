@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -280,9 +280,6 @@ int TranslateAccelerator(int /*long*/ lpMsg, int /*long*/ pguidCmdGroup, int nCm
 	OS.MoveMemory(msg, lpMsg, MSG.sizeof);
 	if (msg.message == OS.WM_KEYDOWN) {
 		switch ((int)/*64*/msg.wParam) {
-			case OS.VK_N:
-				if (OS.GetKeyState (OS.VK_CONTROL) < 0) result = COM.S_OK;
-				break;
 			case OS.VK_F5:
 				OleAutomation auto = new OleAutomation(this);
 				int[] rgdispid = auto.getIDsOfNames(new String[] { "LocationURL" }); //$NON-NLS-1$
@@ -296,6 +293,27 @@ int TranslateAccelerator(int /*long*/ lpMsg, int /*long*/ pguidCmdGroup, int nCm
 					pVarResult.dispose();
 				}
 				break;
+			case OS.VK_TAB:
+				/* 
+				 * Do not interfere with tab traversal since it's not known
+				 * if it will be within IE or out to another Control.
+				 */
+				break;
+			case OS.VK_RETURN:
+				/*
+				* Translating OS.VK_RETURN results in the native control handling it
+				* twice (eg.- inserting two lines instead of one).  So this key is not
+				* translated here, and instead is explicitly handled in the keypress
+				* handler.
+				*/
+				break;
+			case OS.VK_N:
+				/* If the exact keypress is Ctrl+N, which opens a new external IE, then eat this key */
+				if (OS.GetKeyState (OS.VK_CONTROL) < 0 && OS.GetKeyState (OS.VK_MENU) >= 0 && OS.GetKeyState (OS.VK_SHIFT) >= 0) {
+					result = COM.S_OK;
+					break;
+				}
+				// FALL THROUGH
 			default:
 				OS.TranslateMessage(msg);
 				frame.setData(CONSUME_KEY, "true"); //$NON-NLS-1$

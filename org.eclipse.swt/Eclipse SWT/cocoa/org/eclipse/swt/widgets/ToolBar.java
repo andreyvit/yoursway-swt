@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#toolbar">ToolBar, ToolItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ToolBar extends Composite {
 	int itemCount;
@@ -125,9 +129,7 @@ void createHandle () {
 	SWTView widget = (SWTView)new SWTView().alloc();
 	widget.initWithFrame(new NSRect());
 //	widget.setDrawsBackground(false);
-	widget.setTag(jniRef);
 	view = widget;
-	parent.contentView().addSubview_(widget);
 }
 
 void createItem (ToolItem item, int index) {
@@ -424,10 +426,16 @@ void removeControl (Control control) {
 	}
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = super.setBounds (x, y, width, height, move, resize);
-	if ((result & RESIZED) != 0) relayout ();
-	return result;
+void resized () {
+	super.resized ();
+	relayout ();
+}
+
+void setFont(NSFont font) {
+	for (int i = 0; i < itemCount; i++) {
+		ToolItem item = items[i];
+		if (item.button != null) ((NSButton)item.button).setAttributedTitle(item.createString());
+	}
 }
 
 public void setRedraw (boolean redraw) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -90,6 +90,8 @@ import org.eclipse.swt.graphics.*;
  * @see #readAndDispatch
  * @see #sleep
  * @see Device#dispose
+ * @see <a href="http://www.eclipse.org/swt/snippets/#display">Display snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Display extends Device {
 	
@@ -107,17 +109,26 @@ public class Display extends Device {
 
 	Caret currentCaret;
 	
+	boolean dragging;
+	Control currentControl, grabControl, trackingControl;
+
 	Menu menuBar;
+	Menu[] menus;
 
 	NSApplication application;
+	NSWindow screenWindow;
 	NSAutoreleasePool pool;
+	boolean idle;
+	static final short SWT_IDLE_TYPE = 1;
 
-	NSPoint cascade = new NSPoint();
+	int[] screenID = new int[32];
+	NSPoint[] screenCascade = new NSPoint[32];
 
 	Callback applicationDelegateCallback3;
 	Callback windowDelegateCallback2, windowDelegateCallback3, windowDelegateCallback4, windowDelegateCallback5;
 	Callback windowDelegateCallback6;
 	Callback dialogCallback3;
+	Callback applicationCallback3, applicationCallback6;
 	
 	/* Menus */
 //	Menu menuBar;
@@ -139,10 +150,10 @@ public class Display extends Device {
 	static int [] [] KeyTable = {
 
 		/* Keyboard and Mouse Masks */
-//		{58,	SWT.ALT},
-//		{56,	SWT.SHIFT},
-//		{59,	SWT.CONTROL},
-//		{55,	SWT.COMMAND},
+		{58,	SWT.ALT},
+		{56,	SWT.SHIFT},
+		{59,	SWT.CONTROL},
+		{55,	SWT.COMMAND},
 
 		/* Non-Numeric Keypad Keys */
 		{OS.NSUpArrowFunctionKey, SWT.ARROW_UP},
@@ -215,7 +226,8 @@ public class Display extends Device {
 	};
 
 	static String APP_NAME = "SWT";
-	static final String ADD_WIDGET_KEY = "org.eclipse.swt.internal.addWidget";
+	static final String ADD_WIDGET_KEY = "org.eclipse.swt.internal.addWidget"; //$NON-NLS-1$
+	static final String SWT_OBJECT = "SWT_OBJECT"; //$NON-NLS-1$
 
 	/* Multiple Displays. */
 	static Display Default;
@@ -234,8 +246,6 @@ public class Display extends Device {
 	Object data;
 	String [] keys;
 	Object [] values;
-	
-	boolean menuManagementDisabled;
 	
 	/*
 	* TEMPORARY CODE.  Install the runnable that
@@ -360,22 +370,20 @@ public void addListener (int eventType, Listener listener) {
 	eventTable.hook (eventType, listener);
 }
 
-//void addMenu (Menu menu) {
-//	if (menus == null) menus = new Menu [12];
-//	for (int i=0; i<menus.length; i++) {
-//		if (menus [i] == null) {
-//			menu.id = (short)(ID_START + i);
-//			menus [i] = menu;
-//			return;
-//		}
-//	}
-//	Menu [] newMenus = new Menu [menus.length + 12];
-//	menu.id = (short)(ID_START + menus.length);
-//	newMenus [menus.length] = menu;
-//	System.arraycopy (menus, 0, newMenus, 0, menus.length);
-//	menus = newMenus;
-//}
-//
+void addMenu (Menu menu) {
+	if (menus == null) menus = new Menu [12];
+	for (int i=0; i<menus.length; i++) {
+		if (menus [i] == null) {
+			menus [i] = menu;
+			return;
+		}
+	}
+	Menu [] newMenus = new Menu [menus.length + 12];
+	newMenus [menus.length] = menu;
+	System.arraycopy (menus, 0, newMenus, 0, menus.length);
+	menus = newMenus;
+}
+
 //void addPopup (Menu menu) {
 //	if (popups == null) popups = new Menu [4];
 //	int length = popups.length;
@@ -394,6 +402,11 @@ public void addListener (int eventType, Listener listener) {
 //	}
 //	popups [index] = menu;
 //}
+
+void addWidget (NSObject view, Widget widget) {
+	if (view == null) return;
+	OS.object_setInstanceVariable (view.id, SWT_OBJECT, widget.jniRef);
+}
 
 /**
  * Causes the <code>run()</code> method of the runnable to
@@ -435,6 +448,22 @@ public void asyncExec (Runnable runnable) {
  */
 public void beep () {
 	checkDevice ();
+}
+
+void cascadeWindow (NSWindow window, NSScreen screen) {
+	NSDictionary dictionary = screen.deviceDescription();
+	int screenNumber = new NSNumber(dictionary.objectForKey(NSString.stringWith("NSScreenNumber")).id).intValue();
+	int index = 0;
+	while (screenID[index] != 0 && screenID[index] != screenNumber) index++;
+	screenID[index] = screenNumber;
+	NSPoint cascade = screenCascade[index];
+	if (cascade == null) {
+		NSRect frame = screen.frame();
+		cascade = new NSPoint();
+		cascade.x = frame.x;
+		cascade.y = frame.y + frame.height;
+	}
+	screenCascade[index] = window.cascadeTopLeftFromPoint(cascade);
 }
 
 protected void checkDevice () {
@@ -632,7 +661,20 @@ void createDisplay (DeviceData data) {
 	}
 	
 	pool = (NSAutoreleasePool)new NSAutoreleasePool().alloc().init();
-	application = NSApplication.sharedApplication();
+	
+	applicationCallback3 = new Callback(this, "applicationProc", 3);
+	int proc3 = applicationCallback3.getAddress();
+	if (proc3 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
+	applicationCallback6 = new Callback(this, "applicationProc", 6);
+	int proc6 = applicationCallback6.getAddress();
+	if (proc6 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
+	String className = "SWTApplication";
+	int cls = OS.objc_allocateClassPair(OS.class_NSApplication, className, 0);
+	OS.class_addMethod(cls, OS.sel_sendEvent_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_nextEventMatchingMask_1untilDate_1inMode_1dequeue_1, proc6, "@:i@@B");
+	OS.objc_registerClassPair(cls);
+	application = new NSApplication(OS.objc_msgSend(cls, OS.sel_sharedApplication));
+//	application = NSApplication.sharedApplication();
 }
 
 static void deregister (Display display) {
@@ -727,16 +769,7 @@ boolean filters (int eventType) {
  */
 public Widget findWidget (int handle) {
 	checkDevice ();
-	if (handle != 0 && OS.objc_msgSend(handle, OS.sel_respondsToSelector_1, OS.sel_tag) != 0) {
-		int tag = OS.objc_msgSend(handle, OS.sel_tag);
-		if (tag != -1) {
-			Object object = OS.JNIGetObject(tag);
-			if (object instanceof Widget) {
-				return (Widget)object;
-			}
-		}
-	}
-	return null;
+	return getWidget (handle);
 }
 
 /**
@@ -826,22 +859,17 @@ public Shell getActiveShell () {
 	checkDevice ();
 	NSWindow window = application.keyWindow();
 	if (window != null) {
-		NSView view = window.contentView();
-		if (view != null && view.respondsToSelector(OS.sel_tag)) {
-			int tag = OS.objc_msgSend(view.id, OS.sel_tag);
-			if (tag != -1) {
-				Object object = OS.JNIGetObject(tag);
-				if (object instanceof Shell) {
-					return (Shell)object;
-				}
-			}
+		Widget widget = getWidget(window.contentView());
+		if (widget instanceof Shell) {
+			return (Shell)widget;
 		}
 	}
 	return null;
 }
 
 /**
- * Returns a rectangle describing the receiver's size and location.
+ * Returns a rectangle describing the receiver's size and location. Note that
+ * on multi-monitor systems the origin can be negative.
  *
  * @return the bounding rectangle
  *
@@ -852,7 +880,30 @@ public Shell getActiveShell () {
  */
 public Rectangle getBounds () {
 	checkDevice ();
-	return super.getBounds ();
+	NSArray screens = NSScreen.screens();
+	return getBounds (screens);
+}
+
+Rectangle getBounds (NSArray screens) {
+	NSRect primaryFrame = new NSScreen(screens.objectAtIndex(0)).frame();
+	float minX = Float.MAX_VALUE, maxX = Float.MIN_VALUE;
+	float minY = Float.MAX_VALUE, maxY = Float.MIN_VALUE;
+	int count = screens.count();
+	for (int i = 0; i < count; i++) {
+		NSScreen screen = new NSScreen(screens.objectAtIndex(i));
+		NSRect frame = screen.frame();
+		float x1 = frame.x, x2 = frame.x + frame.width;
+		float y1 = primaryFrame.height - frame.y, y2 = primaryFrame.height - (frame.y + frame.height);
+		if (x1 < minX) minX = x1;
+		if (x2 < minX) minX = x2;
+		if (x1 > maxX) maxX = x1;
+		if (x2 > maxX) maxX = x2;
+		if (y1 < minY) minY = y1;
+		if (y2 < minY) minY = y2;
+		if (y1 > maxY) maxY = y1;
+		if (y2 > maxY) maxY = y2;
+	}
+	return new Rectangle ((int)minX, (int)minY, (int)(maxX - minX), (int)(maxY - minY));
 }
 
 /**
@@ -886,7 +937,13 @@ int getCaretBlinkTime () {
  */
 public Rectangle getClientArea () {
 	checkDevice ();
-	return super.getClientArea ();
+	NSArray screens = NSScreen.screens();
+	if (screens.count() != 1) return getBounds (screens);
+	NSScreen screen = new NSScreen(screens.objectAtIndex(0));
+	NSRect frame = screen.frame();
+	NSRect visibleFrame = screen.visibleFrame();
+	float y = frame.height - (visibleFrame.y + visibleFrame.height);
+	return new Rectangle((int)visibleFrame.x, (int)y, (int)visibleFrame.width, (int)visibleFrame.height);
 }
 
 /**
@@ -903,7 +960,7 @@ public Rectangle getClientArea () {
  */
 public Control getCursorControl () {
 	checkDevice();
-	return null;
+	return findControl(null, false, false);
 }
 
 /**
@@ -920,9 +977,8 @@ public Control getCursorControl () {
 public Point getCursorLocation () {
 	checkDevice ();
 	NSPoint location = NSEvent.mouseLocation();
-	//TODO bad for other screens
-	NSRect rect = NSScreen.mainScreen().frame();
-	return new Point ((int) location.x, (int) (rect.height - location.y));
+	NSRect primaryFrame = getPrimaryFrame();
+	return new Point ((int) location.x, (int) (primaryFrame.height - location.y));
 }
 
 /**
@@ -1075,54 +1131,28 @@ public int getDoubleClickTime () {
 public Control getFocusControl () {
 	checkDevice ();
 	NSWindow window = application.keyWindow();
+	return getFocusControl(window);
+}
+
+Control getFocusControl(NSWindow window) {
 	if (window != null) {
-		NSResponder view = window.firstResponder();
-		if (view != null && view.respondsToSelector(OS.sel_tag)) {
-			int tag = OS.objc_msgSend(view.id, OS.sel_tag);
-			if (tag != -1) {
-				try {
-					Object object = OS.JNIGetObject(tag);
-					if (object instanceof Control) {
-						//TODO go up hierarchy
-						return (Control)object;
-					}
-				} catch (NullPointerException e) {
-					// In fact, there is nothing to fail within that method. 
-					// However, if the tag is an alien (for example, used internally 
-					// by Cocoa) it may crash with NPE. In this case the currently 
-					// focused control must be an alien too so we have
-					// nothing to do here. Bye. 
-					return null;				
+		NSResponder responder = window.firstResponder();
+		if (responder != null && !responder.respondsToSelector(OS.sel_superview)) {
+			return null;
+		}
+		NSView view = new NSView(responder.id);
+		if (view != null) {
+			do {
+				Widget widget = getWidget (view);
+				if (widget instanceof Control) {
+					return (Control)widget;
 				}
-			} else {
-				/*
-				* If the first responder is the shared field editor then answer its
-				* delegate as the focus control.
-				*/
-				if (view.isKindOfClass(NSText.static_class())) {
-					NSText text = new NSText(view.id);
-					if (text.isFieldEditor()) {
-						id delegateId = text.delegate();
-						if (delegateId != null) {
-							NSObject delegate = new NSObject(delegateId.id);
-							if (delegate.respondsToSelector(OS.sel_tag)) {
-								tag = OS.objc_msgSend(delegate.id, OS.sel_tag);
-								if (tag != 0 && tag != -1) {
-									Object object = OS.JNIGetObject(tag);
-									if (object instanceof Control) {
-										return (Control)object;
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+				view = view.superview();
+			} while (view != null);
 		}
 	}
 	return null;
 }
-
 
 /**
  * Returns true when the high contrast mode is enabled.
@@ -1193,34 +1223,23 @@ int getLastEventTime () {
 	return (int) System.currentTimeMillis ();
 }
 
-//Menu [] getMenus (Decorations shell) {
-//	if (menus == null) return new Menu [0];
-//	int count = 0;
-//	for (int i = 0; i < menus.length; i++) {
-//		Menu menu = menus[i];
-//		if (menu != null && menu.parent == shell) count++;
-//	}
-//	int index = 0;
-//	Menu[] result = new Menu[count];
-//	for (int i = 0; i < menus.length; i++) {
-//		Menu menu = menus[i];
-//		if (menu != null && menu.parent == shell) {
-//			result[index++] = menu;
-//		}
-//	}
-//	return result;
-//}
-//
-//Menu getMenu (int id) {
-//	if (menus == null) return null;
-//	int index = id - ID_START;
-//	if (0 <= index && index < menus.length) return menus [index];
-//	return null;
-//}
-//
-//Menu getMenuBar () {
-//	return menuBar;
-//}
+Menu [] getMenus (Decorations shell) {
+	if (menus == null) return new Menu [0];
+	int count = 0;
+	for (int i = 0; i < menus.length; i++) {
+		Menu menu = menus[i];
+		if (menu != null && menu.parent == shell) count++;
+	}
+	int index = 0;
+	Menu[] result = new Menu[count];
+	for (int i = 0; i < menus.length; i++) {
+		Menu menu = menus[i];
+		if (menu != null && menu.parent == shell) {
+			result[index++] = menu;
+		}
+	}
+	return result;
+}
 
 int getMessageCount () {
 	return synchronizer.getMessageCount ();
@@ -1236,6 +1255,7 @@ int getMessageCount () {
 public Monitor [] getMonitors () {
 	checkDevice ();
 	NSArray screens = NSScreen.screens();
+	NSRect primaryFrame = new NSScreen(screens.objectAtIndex(0)).frame();
 	int count = screens.count();
 	Monitor [] monitors = new Monitor [count];
 	for (int i=0; i<count; i++) {
@@ -1243,17 +1263,22 @@ public Monitor [] getMonitors () {
 		NSScreen screen = new NSScreen(screens.objectAtIndex(i));
 		NSRect frame = screen.frame();
 		monitor.x = (int)frame.x;
-		monitor.y = (int)frame.y;
+		monitor.y = (int)(primaryFrame.height - (frame.y + frame.height));
 		monitor.width = (int)frame.width;
 		monitor.height = (int)frame.height;
 		NSRect visibleFrame = screen.visibleFrame();
 		monitor.clientX = (int)visibleFrame.x;
-		monitor.clientY = (int)visibleFrame.y;
+		monitor.clientY = (int)(primaryFrame.height - (visibleFrame.y + visibleFrame.height));
 		monitor.clientWidth = (int)visibleFrame.width;
 		monitor.clientHeight = (int)visibleFrame.height;
 		monitors [i] = monitor;
 	}
 	return monitors;
+}
+
+NSRect getPrimaryFrame () {
+	NSArray screens = NSScreen.screens();
+	return new NSScreen(screens.objectAtIndex(0)).frame();
 }
 
 /**
@@ -1266,15 +1291,16 @@ public Monitor [] getMonitors () {
 public Monitor getPrimaryMonitor () {
 	checkDevice ();
 	Monitor monitor = new Monitor ();
-	NSScreen screen = NSScreen.mainScreen();
+	NSArray screens = NSScreen.screens();
+	NSScreen screen = new NSScreen(screens.objectAtIndex(0));
 	NSRect frame = screen.frame();
 	monitor.x = (int)frame.x;
-	monitor.y = (int)frame.y;
+	monitor.y = (int)(frame.height - (frame.y + frame.height));
 	monitor.width = (int)frame.width;
 	monitor.height = (int)frame.height;
 	NSRect visibleFrame = screen.visibleFrame();
 	monitor.clientX = (int)visibleFrame.x;
-	monitor.clientY = (int)visibleFrame.y;
+	monitor.clientY = (int)(frame.height - (visibleFrame.y + visibleFrame.height));
 	monitor.clientWidth = (int)visibleFrame.width;
 	monitor.clientHeight = (int)visibleFrame.height;
 	return monitor;
@@ -1298,15 +1324,9 @@ public Shell [] getShells () {
 	Shell [] result = new Shell [windows.count()];
 	for (int i = 0; i < result.length; i++) {
 		NSWindow window = new NSWindow(windows.objectAtIndex(i));
-		NSView view = window.contentView();
-		if (view != null) {
-			int jniRef = OS.objc_msgSend(view.id, OS.sel_tag);
-			if (jniRef != 0 && jniRef != -1) {
-				Object object = OS.JNIGetObject(jniRef);
-				if (object instanceof Shell) {
-					result[index++] = (Shell)object;
-				}
-			}
+		Widget widget = getWidget(window.contentView());
+		if (widget instanceof Shell) {
+			result[index++] = (Shell)widget;
 		}
 	}
 	if (index == result.length) return result;
@@ -1541,6 +1561,25 @@ public Thread getThread () {
 	}
 }
 
+int getToolTipTime () {
+	checkDevice ();
+	//TODO get OS value (NSTooltipManager?)
+	return 560;
+}
+
+Widget getWidget (int id) {
+	if (id == 0) return null;
+	int [] jniRef = new int [1];
+	OS.object_getInstanceVariable(id, SWT_OBJECT, jniRef);
+	if (jniRef[0] == 0) return null;
+	return (Widget)OS.JNIGetObject(jniRef[0]);
+}
+
+Widget getWidget (NSView view) {
+	if (view == null) return null;
+	return getWidget(view.id);
+}
+
 /**
  * Initializes any internal resources needed by the
  * device.
@@ -1572,18 +1611,41 @@ void initApplicationDelegate() {
 	OS.class_addMethod(cls, OS.sel_unhideAllApplications_1, appProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_applicationShouldTerminate_1, appProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_applicationWillTerminate_1, appProc3, "@:@");
-	OS.class_addMethod(cls, OS.sel__windowWillClose_1, appProc3, "@:@");
 	OS.objc_registerClassPair(cls);
 	
 	applicationDelegate = (SWTApplicationDelegate)new SWTApplicationDelegate().alloc().init();
 	application.setDelegate(applicationDelegate);
 }
 
+void addEventMethods (int cls, int proc2, int proc3) {
+	OS.class_addMethod(cls, OS.sel_mouseDown_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_mouseUp_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_scrollWheel_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_rightMouseDown_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_rightMouseUp_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_otherMouseDown_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_otherMouseUp_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_mouseDragged_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_mouseMoved_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_mouseEntered_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_mouseExited_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_resignFirstResponder, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_becomeFirstResponder, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_keyDown_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_keyUp_1, proc3, "@:@");
+}
+
+void addFrameMethods(int cls, int setFrameOriginProc, int setFrameSizeProc) {
+	OS.class_addMethod(cls, OS.sel_setFrameOrigin_1, setFrameOriginProc, "@:{NSPoint}");	
+	OS.class_addMethod(cls, OS.sel_setFrameSize_1, setFrameSizeProc, "@:{NSSize}");	
+}
+
 void initClasses () {
 	dialogCallback3 = new Callback(this, "dialogProc", 3);
 	int dialogProc3 = dialogCallback3.getAddress();
 	if (dialogProc3 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
-
+	
 	windowDelegateCallback3 = new Callback(this, "windowDelegateProc", 3);
 	int proc3 = windowDelegateCallback3.getAddress();
 	if (proc3 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
@@ -1599,12 +1661,15 @@ void initClasses () {
 	windowDelegateCallback6 = new Callback(this, "windowDelegateProc", 6);
 	int proc6 = windowDelegateCallback6.getAddress();
 	if (proc6 == 0) error (SWT.ERROR_NO_MORE_CALLBACKS);
-	
+
 	int drawRectProc = OS.drawRect_CALLBACK(proc3);
+	int setFrameOriginProc = OS.setFrame_CALLBACK(proc3);
+	int setFrameSizeProc = OS.setFrame_CALLBACK(proc3);
+	int hitTestProc = OS.hitTest_CALLBACK(proc3);
 
 	String className = "SWTWindowDelegate";
 	int cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_windowDidResize_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_windowDidMove_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_windowShouldClose_1, proc3, "@:@");
@@ -1612,95 +1677,75 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_windowWillClose_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_windowDidResignKey_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_windowDidBecomeKey_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
 	OS.class_addMethod(cls, OS.sel_timerProc_1, proc3, "@:@");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTPanelDelegate";
 	cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_windowWillClose_1, dialogProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_changeColor_1, dialogProc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_changeFont_1, dialogProc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-	OS.objc_registerClassPair(cls);
-	
-	className = "SWTDrawerDelegate";
-	cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawerWillResizeContents_1toSize_1, proc4, "@:@");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTMenu";
 	cls = OS.objc_allocateClassPair(OS.class_NSMenu, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-//	OS.class_addMethod(cls, OS.sel_menuWillOpen_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_menuWillClose_1, proc3, "@:@");
-//	OS.class_addMethod(cls, OS.sel_numberOfItemsInMenu_1, proc3, "@:@");	
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addMethod(cls, OS.sel_menuWillClose_1, proc3, "@:@");	
 	OS.class_addMethod(cls, OS.sel_menu_1willHighlightItem_1, proc4, "@:@@");
 	OS.class_addMethod(cls, OS.sel_menuNeedsUpdate_1, proc3, "@:@");
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTView";
 	cls = OS.objc_allocateClassPair(OS.class_NSView, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
-	OS.class_addMethod(cls, OS.sel_mouseDown_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_mouseDragged_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_mouseEntered_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_mouseUp_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_scrollWheel_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_acceptsFirstResponder, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_resignFirstResponder, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_becomeFirstResponder, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_resetCursorRects, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_isOpaque, proc2, "@:");
+	OS.class_addMethod(cls, OS.sel_hitTest_1, hitTestProc, "@:{NSPoint}");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTScrollView";
 	cls = OS.objc_allocateClassPair(OS.class_NSScrollView, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendVerticalSelection, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_sendHorizontalSelection, proc2, "@:");
-//	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_pageDown_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_pageUp_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTButton";
 	cls = OS.objc_allocateClassPair(OS.class_NSButton, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-//	OS.class_addMethod(cls, OS.sel_mouseDown_1, proc3, "@:@");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_sendArrowSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTTableView";
 	cls = OS.objc_allocateClassPair(OS.class_NSTableView, className, 0);
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendDoubleSelection, proc2, "@:");
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_numberOfRowsInTableView_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_tableView_1objectValueForTableColumn_1row_1, proc5, "@:@:@:@");
 	OS.class_addMethod(cls, OS.sel_tableView_1shouldEditTableColumn_1row_1, proc5, "@:@:@:@");
 	OS.class_addMethod(cls, OS.sel_tableViewSelectionDidChange_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_tableView_1willDisplayCell_1forTableColumn_1row_1, proc6, "@:@@@i");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_tableView_1setObjectValue_1forTableColumn_1row_1, proc6, "@:@@@i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTOutlineView";
 	cls = OS.objc_allocateClassPair(OS.class_NSOutlineView, className, 0);
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendDoubleSelection, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_outlineViewSelectionDidChange_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_outlineView_1shouldCollapseItem_1, proc4, "@:@@");
@@ -1711,139 +1756,135 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_outlineView_1objectValueForTableColumn_1byItem_1, proc5, "@:@@@");
 	OS.class_addMethod(cls, OS.sel_outlineView_1willDisplayCell_1forTableColumn_1item_1, proc6, "@:@@@@");
 	OS.class_addMethod(cls, OS.sel_outlineView_1setObjectValue_1forTableColumn_1byItem_1, proc6, "@:@@@@");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTTreeItem";
 	cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTTabView";
 	cls = OS.objc_allocateClassPair(OS.class_NSTabView, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_tabView_1willSelectTabViewItem_1, proc4, "@:@@");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTBox";
 	cls = OS.objc_allocateClassPair(OS.class_NSBox, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTProgressIndicator";
 	cls = OS.objc_allocateClassPair(OS.class_NSProgressIndicator, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls); 
 
 	className = "SWTSlider";
 	cls = OS.objc_allocateClassPair(OS.class_NSSlider, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls); 
 	
 	className = "SWTPopUpButton";
 	cls = OS.objc_allocateClassPair(OS.class_NSPopUpButton, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTComboBox";
 	cls = OS.objc_allocateClassPair(OS.class_NSComboBox, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_comboBoxSelectionDidChange_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTDatePicker";
 	cls = OS.objc_allocateClassPair(OS.class_NSDatePicker, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTImageView";
 	cls = OS.objc_allocateClassPair(OS.class_NSImageView, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_drawRect_1, OS.drawRect_CALLBACK(proc3), "@:i");
-	OS.class_addMethod(cls, OS.sel_mouseDown_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_mouseUp_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_rightMouseDown_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTStepper";
 	cls = OS.objc_allocateClassPair(OS.class_NSStepper, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTScroller";
 	cls = OS.objc_allocateClassPair(OS.class_NSScroller, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTMenuItem";
 	cls = OS.objc_allocateClassPair(OS.class_NSMenuItem, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTTextView";
 	cls = OS.objc_allocateClassPair(OS.class_NSTextView, className, 0);
-//	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-//	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
-	OS.class_addMethod(cls, OS.sel_menuForEvent_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_textView_1clickedOnLink_1atIndex_1, proc5, "@:@@i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTTextField";
 	cls = OS.objc_allocateClassPair(OS.class_NSTextField, className, 0);
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
-
+	
 	className = "SWTSearchField";
 	cls = OS.objc_allocateClassPair(OS.class_NSSearchField, className, 0);
-	OS.class_addMethod(cls, OS.sel_performAction, proc3, "@:@");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
+	OS.objc_registerClassPair(cls);
+	
+	className = "SWTSecureTextField";
+	cls = OS.objc_allocateClassPair(OS.class_NSSecureTextField, className, 0);
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
+	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
+	addEventMethods(cls, proc2, proc3);
+	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTWindow";
 	cls = OS.objc_allocateClassPair(OS.class_NSWindow, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");
+	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendEvent_1, proc3, "@:@");
-	OS.class_addMethod(cls, OS.sel_flagsChanged_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_helpRequested_1, proc3, "@:@");
-	OS.objc_registerClassPair(cls);
-	
-	className = "SWTDrawer";
-	cls = OS.objc_allocateClassPair(OS.class_NSDrawer, className, 0);
-	OS.class_addIvar(cls, "tag", OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_tag, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_setTag_1, proc3, "@:i");	
 	OS.objc_registerClassPair(cls);
 }
 
@@ -1869,7 +1910,13 @@ void initClasses () {
  */
 public int internal_new_GC (GCData data) {
 	if (isDisposed()) SWT.error(SWT.ERROR_DEVICE_DISPOSED);
-	NSGraphicsContext context = application.context();
+	if (screenWindow == null) {
+		NSWindow window = (NSWindow) new NSWindow ().alloc ();
+		NSRect rect = new NSRect();
+		window = window.initWithContentRect_styleMask_backing_defer_(rect, OS.NSBorderlessWindowMask, OS.NSBackingStoreBuffered, false);
+		screenWindow = window;
+	}
+	NSGraphicsContext context = screenWindow.graphicsContext();
 //	NSAffineTransform transform = NSAffineTransform.transform();
 //	NSSize size = handle.size();
 //	transform.translateXBy(0, size.height);
@@ -2199,15 +2246,18 @@ public Point map (Control from, Control to, int x, int y) {
 	if (toWindow != null && fromWindow != null && toWindow.id == fromWindow.id) {
 		pt = from.view.convertPoint_toView_(pt, to.view);
 	} else {
+		NSRect primaryFrame = getPrimaryFrame();
 		if (from != null) {
-			pt = from.view.convertPoint_toView_(pt, null);
+			NSView view = from.contentView ();
+			pt = view.convertPoint_toView_(pt, null);
 			pt = fromWindow.convertBaseToScreen(pt);
-			pt.y = fromWindow.screen().frame().height - pt.y;
+			pt.y = primaryFrame.height - pt.y;
 		}
 		if (to != null) {
-			pt.y = toWindow.screen().frame().height - pt.y;
+			NSView view = to.contentView ();
+			pt.y = primaryFrame.height - pt.y;
 			pt = toWindow.convertScreenToBase(pt);
-			pt = to.view.convertPoint_fromView_(pt, null);
+			pt = view.convertPoint_fromView_(pt, null);
 		}
 	}
 	point.x = (int)pt.x;
@@ -2309,15 +2359,18 @@ public Rectangle map (Control from, Control to, int x, int y, int width, int hei
 	if (toWindow != null && fromWindow != null && toWindow.id == fromWindow.id) {
 		pt = from.view.convertPoint_toView_(pt, to.view);
 	} else {
+		NSRect primaryFrame = getPrimaryFrame();
 		if (from != null) {
-			pt = from.view.convertPoint_toView_(pt, null);
+			NSView view = from.contentView ();
+			pt = view.convertPoint_toView_(pt, null);
 			pt = fromWindow.convertBaseToScreen(pt);
-			pt.y = fromWindow.screen().frame().height - pt.y;
+			pt.y = primaryFrame.height - pt.y;
 		}
 		if (to != null) {
-			pt.y = toWindow.screen().frame().height - pt.y;
+			NSView view = to.contentView ();
+			pt.y = primaryFrame.height - pt.y;
 			pt = toWindow.convertScreenToBase(pt);
-			pt = to.view.convertPoint_fromView_(pt, null);
+			pt = view.convertPoint_fromView_(pt, null);
 		}
 	}
 	rectangle.x = (int)pt.x;
@@ -2352,10 +2405,6 @@ public Rectangle map (Control from, Control to, int x, int y, int width, int hei
 public boolean readAndDispatch () {
 	checkDevice ();
 	NSAutoreleasePool pool = (NSAutoreleasePool)new NSAutoreleasePool().alloc().init();
-
-	NSNotificationCenter.defaultCenter().addObserver(applicationDelegate, OS.sel__windowWillClose_1, 
-			NSString.stringWith("NSWindowWillCloseNotification"), null);
-	
 	try {
 		boolean events = false;
 		events |= runTimers ();
@@ -2364,6 +2413,11 @@ public boolean readAndDispatch () {
 			events = true;
 			application.sendEvent(event);
 		}
+//		NSEvent event = NSEvent.otherEventWithType(OS.NSApplicationDefined, new NSPoint(), 0, 0, 0, null, SWT_IDLE_TYPE, 0, 0);
+//		application.postEvent(event, false);
+//		idle = true;
+//		application.run();
+//		events |= !idle;
 		if (events) {
 			runDeferredEvents ();
 			return true;
@@ -2423,7 +2477,7 @@ protected void release () {
 	}
 	if (tray != null) tray.dispose ();
 	tray = null;
-//	while (readAndDispatch ()) {}
+	while (readAndDispatch ()) {}
 	if (disposeList != null) {
 		for (int i=0; i<disposeList.length; i++) {
 			if (disposeList [i] != null) disposeList [i].run ();
@@ -2443,14 +2497,14 @@ void releaseDisplay () {
 	if (warningImage != null) warningImage.dispose ();
 	errorImage = infoImage = warningImage = null;
 	
-	//TODO - stop caret
+	if (caretTimer != null) timerExec(-1, caretTimer);
+	caretTimer = null;
 	currentCaret = null;
 	
 	/* Release Timers */
 	if (nsTimers != null) {
 		for (int i=0; i<nsTimers.length; i++) {
-			//TODO - check -1 as sentinal
-			if (nsTimers [i] != null /*&& timerIds [i] != -1*/) {
+			if (nsTimers [i] != null) {
 				nsTimers [i].invalidate();
 				nsTimers [i].release();
 			}
@@ -2463,7 +2517,16 @@ void releaseDisplay () {
 		if (cursors [i] != null) cursors [i].dispose ();
 	}
 	cursors = null;
+	
+	if (screenWindow != null) screenWindow.release();
+	screenWindow = null;
+	
+	menuBar = null;
+	menus = null;
 
+	if (applicationCallback3 != null) applicationCallback3.dispose ();
+	if (applicationCallback6 != null) applicationCallback6.dispose ();
+	if (applicationDelegateCallback3 != null) applicationDelegateCallback3.dispose();
 	if (windowDelegateCallback2 != null) windowDelegateCallback2.dispose ();
 	if (windowDelegateCallback3 != null) windowDelegateCallback3.dispose ();
 	if (windowDelegateCallback4 != null) windowDelegateCallback4.dispose ();
@@ -2472,6 +2535,8 @@ void releaseDisplay () {
 	if (dialogCallback3 != null) dialogCallback3.dispose ();
 	windowDelegateCallback2 = windowDelegateCallback3 = windowDelegateCallback4 = null;
 	windowDelegateCallback6 = windowDelegateCallback5 = null;
+	applicationCallback3 = dialogCallback3 = applicationDelegateCallback3 = null;
+	applicationCallback6 = null;
 }
 
 /**
@@ -2511,7 +2576,7 @@ public void removeFilter (int eventType, Listener listener) {
  * is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -2534,11 +2599,26 @@ public void removeListener (int eventType, Listener listener) {
 	eventTable.unhook (eventType, listener);
 }
 
-//void removeMenu (Menu menu) {
-//	if (menus == null) return;
-//	menus [menu.id - ID_START] = null;
-//}
-//
+Widget removeWidget (NSObject view) {
+	if (view == null) return null;
+	int [] jniRef = new int [1];
+	OS.object_getInstanceVariable(view.id, SWT_OBJECT, jniRef);
+	if (jniRef[0] == 0) return null;
+	Widget widget = (Widget)OS.JNIGetObject(jniRef[0]);
+	OS.object_setInstanceVariable(view.id, SWT_OBJECT, 0);
+	return widget;
+}
+
+void removeMenu (Menu menu) {
+	if (menus == null) return;
+	for (int i = 0; i < menus.length; i++) {
+		if (menus [i] == menu) {
+			menus[i] = null;
+			break;
+		}
+	}
+}
+
 //void removePopup (Menu menu) {
 //	if (popups == null) return;
 //	for (int i=0; i<popups.length; i++) {
@@ -2630,6 +2710,14 @@ public static void setAppName (String name) {
 	APP_NAME = name;
 }
 
+//TODO use custom timer instead of timerExec
+Runnable hoverTimer = new Runnable () {
+	public void run () {
+		if (currentControl != null && !currentControl.isDisposed()) {
+			currentControl.sendMouseEvent (null, SWT.MouseHover, trackingControl != null);
+		}
+	}
+};
 //TODO - use custom timer instead of timerExec
 Runnable caretTimer = new Runnable () {
 	public void run () {
@@ -2653,6 +2741,13 @@ void setCurrentCaret (Caret caret) {
 		int blinkRate = currentCaret.blinkRate;
 		timerExec (blinkRate, caretTimer);
 	}
+}
+
+void setCursor (Control control) {
+	Cursor cursor = null;
+	if (control != null) cursor = control.findCursor ();
+	if (cursor == null) cursor = getSystemCursor (SWT.CURSOR_ARROW);
+	cursor.handle.set ();
 }
 
 /**
@@ -2727,6 +2822,17 @@ public void setData (String key, Object value) {
 	checkDevice ();
 	if (key == null) error (SWT.ERROR_NULL_ARGUMENT);
 	
+	if (key.equals (ADD_WIDGET_KEY)) {
+		Object [] data = (Object [])value;
+		NSObject object = (NSObject)data [0];
+		Widget widget = (Widget)data [1];
+		if (widget == null) {
+			removeWidget (object);
+		} else {
+			addWidget (object, widget);
+		}
+	}
+	
 	/* Remove the key/value pair */
 	if (value == null) {
 		if (keys == null) return;
@@ -2771,17 +2877,7 @@ public void setData (String key, Object value) {
 	values = newValues;
 }
 
-public void setApplicationMenuBar(Menu menu) {
-    menuManagementDisabled = true;
-    displayMenuBar(menu);
-}
-
-public NSApplication getApplication() {
-    return application;
-}
-
 void setMenuBar (Menu menu) {
-    if (menuManagementDisabled) return;
 	/*
 	* Feature in the Macintosh.  SetRootMenu() does not
 	* accept NULL to indicate that their should be no
@@ -2791,10 +2887,6 @@ void setMenuBar (Menu menu) {
 	*/
 	if (menu == menuBar) return;
 	menuBar = menu;
-	displayMenuBar(menu);
-}
-
-void displayMenuBar(Menu menu) {
 	//remove all existing menu items except the application menu
 	NSMenu menubar = application.mainMenu();
 	int count = menubar.numberOfItems();
@@ -3067,6 +3159,143 @@ void wakeThread () {
 	object.performSelectorOnMainThread_withObject_waitUntilDone_(OS.sel_release, null, false);
 }
 
+Control findControl (NSEvent nsEvent, boolean checkGrab, boolean checkTrim) {
+	if (checkGrab && grabControl != null && !grabControl.isDisposed()) return grabControl;
+	NSPoint point = NSEvent.mouseLocation();
+	NSView view = null;
+	NSWindow window = nsEvent != null ? nsEvent.window() : null;
+	if (window != null) {
+		view = window.contentView().hitTest (window.convertScreenToBase(point));
+	}
+	if (view == null) {
+		NSArray windows = application.windows();
+		for (int i = 0; i < windows.count() && view == null; i++) {
+			window = new NSWindow(windows.objectAtIndex(i));
+			NSView contentView = window.contentView();
+			if (contentView != null) view = contentView.hitTest (window.convertScreenToBase(point));
+		}
+	}
+	Control control = null;
+	if (view != null) {
+		do {
+			Widget widget = getWidget (view);
+			if (widget instanceof Control) {
+				control = (Control)widget;
+				break;
+			}
+			view = view.superview();
+		} while (view != null);
+	}
+	if (checkTrim) {
+		if (control != null && control.isTrim (view)) control = null;
+	}
+	return control;
+}
+
+int applicationNextEventMatchingMask (int id, int sel, int mask, int expiration, int mode, int dequeue) {
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	int result = OS.objc_msgSendSuper(super_struct, sel, mask, expiration, mode, dequeue);
+	if (result != 0) {
+		if (trackingControl != null && dequeue != 0) {
+			NSEvent nsEvent = new NSEvent(result);
+			applicationSendMouseEvent(nsEvent, true);
+		}
+	}
+	return result;
+}
+
+void applicationSendMouseEvent (NSEvent nsEvent, boolean send) {
+	if (send) runDeferredEvents();
+	boolean up = false;
+	int type = nsEvent.type();
+	switch (type) {
+		case OS.NSLeftMouseDown:
+		case OS.NSRightMouseDown:
+		case OS.NSOtherMouseDown: {
+			Control control = grabControl = findControl(nsEvent, true, true);
+			if (control != null) {
+				if (type == OS.NSLeftMouseDown && nsEvent.clickCount() == 1 && (control.state & Widget.DRAG_DETECT) != 0 && control.hooks (SWT.DragDetect)) {
+					dragging = true;
+				}
+				control.sendMouseEvent (nsEvent, SWT.MouseDown, send);
+				if (nsEvent.clickCount() == 2) {
+					control.sendMouseEvent (nsEvent, SWT.MouseDoubleClick, send);
+				}
+			}
+			break;
+		}
+		case OS.NSLeftMouseUp:
+		case OS.NSRightMouseUp:
+		case OS.NSOtherMouseUp: {
+			Control control = findControl(nsEvent, true, true);
+			if (control != null) {
+				control.sendMouseEvent (nsEvent, SWT.MouseUp, send);
+			}
+			grabControl = null;
+			up = true;
+			//FALL THROUGH
+		}
+		case OS.NSLeftMouseDragged:
+		case OS.NSRightMouseDragged:
+		case OS.NSOtherMouseDragged:
+		case OS.NSMouseMoved: {
+			Control control = findControl(nsEvent, true, true);
+			if (dragging) {
+				dragging = false;
+				control.sendDragEvent(nsEvent);
+			}
+			if (control != currentControl) {
+				if (currentControl != null) {
+					currentControl.sendMouseEvent (nsEvent, SWT.MouseExit, send);
+				}
+				currentControl = control;
+				if (control != null) {
+					control.sendMouseEvent (nsEvent, SWT.MouseEnter, send);
+					if (up) timerExec (getToolTipTime (), hoverTimer);
+				}
+				setCursor (control);
+			}
+			if (!up && control != null) {
+				timerExec (getToolTipTime (), hoverTimer);
+				control.sendMouseEvent (nsEvent, SWT.MouseMove, send);
+			}
+			break;
+		}
+	}
+}
+
+void applicationSendEvent (int id, int sel, int event) {
+	NSEvent nsEvent = new NSEvent(event);
+	applicationSendMouseEvent(nsEvent, false);
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	OS.objc_msgSendSuper(super_struct, sel, event);
+//	if (nsEvent.type() == OS.NSApplicationDefined && nsEvent.subtype() == SWT_IDLE_TYPE) {
+//		idle = true;
+//	} else {
+//		idle = false;
+//	}
+//	application.stop(null);
+}
+
+int applicationProc(int id, int sel, int event) {
+	if (sel == OS.sel_sendEvent_1) {
+		applicationSendEvent (id, sel, event);
+		return 0;
+	}
+	return 0;
+}
+
+int applicationProc(int id, int sel, int arg0, int arg1, int arg2, int arg3) {
+	if (sel == OS.sel_nextEventMatchingMask_1untilDate_1inMode_1dequeue_1) {
+		return applicationNextEventMatchingMask(id, sel, arg0, arg1, arg2, arg3);
+	}
+	return 0;
+}
+
 int applicationDelegateProc(int id, int sel, int arg0) {
 	if (sel == OS.sel_applicationWillFinishLaunching_1) {
 		id dict = NSDictionary.dictionaryWithObject(applicationDelegate, NSString.stringWith("NSOwner"));
@@ -3090,8 +3319,8 @@ int applicationDelegateProc(int id, int sel, int arg0) {
 	} else if (sel == OS.sel_terminate_1) {
 		application.terminate(application);
 	} else if (sel == OS.sel_orderFrontStandardAboutPanel_1) {
-		Event event = new Event ();
-		sendEvent (SWT.ABORT, event);
+//		Event event = new Event ();
+//		sendEvent (SWT.ABORT, event);
 	} else if (sel == OS.sel_hideOtherApplications_1) {
 		application.hideOtherApplications(application);
 	} else if (sel == OS.sel_hide_1) {
@@ -3109,46 +3338,24 @@ int applicationDelegateProc(int id, int sel, int arg0) {
 		return OS.NSTerminateCancel;
 	} else if (sel == OS.sel_applicationWillTerminate_1) {
 		dispose();
-	} else if (sel == OS.sel__windowWillClose_1) {
-		fixWindowsStatus(new NSNotification(arg0));
-	}
+	} 
 	return 0;
 }
 
-
-void fixWindowsStatus(NSNotification notification) {
-	NSWindow deadWindow = new NSWindow(notification.object().id);
-	
-	if (application != null && application.isRunning()) {
-		NSArray windows = application.orderedWindows();
-		
-		NSEnumerator enumerator = windows.objectEnumerator();		
-		id nextWin;
-		while ((nextWin = enumerator.nextObject()) != null) {
-			if (nextWin.id == deadWindow.id)
-				continue;
-			NSWindow win = new NSWindow(nextWin.id);
-			if (win.canBecomeKeyWindow() && win.isVisible()) {
-				win.makeKeyAndOrderFront(null);
-				break;
-			}			
-		}
-	}
-}
-
 int dialogProc(int id, int sel, int arg0) {
-	int jniRef = OS.objc_msgSend(id, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
+	int [] jniRef = new int [1];
+	OS.object_getInstanceVariable(id, SWT_OBJECT, jniRef);
+	if (jniRef[0] == 0) return 0;
 	if (sel == OS.sel_changeColor_1) {
-		ColorDialog dialog = (ColorDialog)OS.JNIGetObject(jniRef);
+		ColorDialog dialog = (ColorDialog)OS.JNIGetObject(jniRef[0]);
 		if (dialog == null) return 0;
 		dialog.changeColor(arg0);
 	} else if (sel == OS.sel_changeFont_1) {
-		FontDialog dialog = (FontDialog)OS.JNIGetObject(jniRef);
+		FontDialog dialog = (FontDialog)OS.JNIGetObject(jniRef[0]);
 		if (dialog == null) return 0;
 		dialog.changeFont(arg0);
 	} else if (sel == OS.sel_windowWillClose_1) {
-		Object object = OS.JNIGetObject(jniRef);
+		Object object = OS.JNIGetObject(jniRef[0]);
 		if (object instanceof FontDialog) {
 			((FontDialog)object).windowWillClose(arg0);
 		} else if (object instanceof ColorDialog) {
@@ -3158,15 +3365,8 @@ int dialogProc(int id, int sel, int arg0) {
 	return 0;
 }
 
-int windowDelegateProc(int delegate, int sel) {
-	if (sel == OS.sel_tag) {
-		int[] tag = new int[1];
-		OS.object_getInstanceVariable(delegate, "tag", tag);	
-		return tag[0];
-	}
-	int jniRef = OS.objc_msgSend(delegate, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
-	Widget widget = (Widget)OS.JNIGetObject(jniRef);
+int windowDelegateProc(int id, int sel) {
+	Widget widget = getWidget(id);
 	if (widget == null) return 0;
 	if (sel == OS.sel_isFlipped) {
 		return widget.isFlipped() ? 1 : 0;
@@ -3192,17 +3392,17 @@ int windowDelegateProc(int delegate, int sel) {
 		return 0;
 	}
 	if (sel == OS.sel_acceptsFirstResponder) {
-		return widget.acceptsFirstResponder() ? 1 : 0;
+		return widget.acceptsFirstResponder(id, sel) ? 1 : 0;
 	}
 	if (sel == OS.sel_becomeFirstResponder) {
-		return widget.becomeFirstResponder() ? 1 : 0;
+		return widget.becomeFirstResponder(id, sel) ? 1 : 0;
 	}
 	if (sel == OS.sel_resignFirstResponder) {
-		return widget.resignFirstResponder() ? 1 : 0;
+		return widget.resignFirstResponder(id, sel) ? 1 : 0;
 	}
-	if (sel == OS.sel_resetCursorRects) {
-		widget.resetCursorRects();
-	}	
+	if (sel == OS.sel_isOpaque) {
+		return widget.isOpaque(id, sel) ? 1 : 0;
+	}
 	return 0;
 }
 
@@ -3210,36 +3410,63 @@ int windowDelegateProc(int id, int sel, int arg0) {
 	if (sel == OS.sel_timerProc_1) {
 		return timerProc (arg0);
 	}
-	if (sel == OS.sel_setTag_1) {
-		OS.object_setInstanceVariable(id, "tag", arg0);
-		return 0;
-	}
-	int jniRef = OS.objc_msgSend(id, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
-	Widget widget = (Widget)OS.JNIGetObject(jniRef);
+	Widget widget = getWidget(id);
 	if (widget == null) return 0;
 	if (sel == OS.sel_windowWillClose_1) {
 		widget.windowWillClose(arg0);
 	} else if (sel == OS.sel_drawRect_1) {
 		NSRect rect = new NSRect();
 		OS.memmove(rect, arg0, NSRect.sizeof);
+		Shell shell = (Shell)getWidget(new NSView(id).window().contentView());
+		NSBezierPath path = shell != null ? shell.regionPath : null;
+		if (path != null) {
+			NSGraphicsContext.static_saveGraphicsState();
+			path.addClip();
+		}
 		widget.drawRect(id, rect);
+		if (path != null) {
+			NSGraphicsContext.static_restoreGraphicsState();
+		}
+	} else if (sel == OS.sel_setFrameOrigin_1) {
+		NSPoint point = new NSPoint();
+		OS.memmove(point, arg0, NSPoint.sizeof);
+		widget.setFrameOrigin(id, sel, point);
+	} else if (sel == OS.sel_setFrameSize_1) {
+		NSSize size = new NSSize();
+		OS.memmove(size, arg0, NSSize.sizeof);
+		widget.setFrameSize(id, sel, size);
+	} else if (sel == OS.sel_hitTest_1) {
+		NSPoint point = new NSPoint();
+		OS.memmove(point, arg0, NSPoint.sizeof);
+		return widget.hitTest(id, sel, point);
 	} else if (sel == OS.sel_windowShouldClose_1) {
 		return widget.windowShouldClose(arg0) ? 1 : 0;
 	} else if (sel == OS.sel_mouseDown_1) {
-		widget.mouseDown(arg0);
-	} else if (sel == OS.sel_rightMouseDown_1) {
-		widget.rightMouseDown(arg0);
-	} else if (sel == OS.sel_mouseDragged_1) {
-		widget.mouseDragged(arg0);
+		widget.mouseDown(id, sel, arg0);
+	} else if (sel == OS.sel_keyDown_1) {
+		widget.keyDown(id, sel, arg0);
+	} else if (sel == OS.sel_keyUp_1) {
+		widget.keyUp(id, sel, arg0);
 	} else if (sel == OS.sel_mouseUp_1) {
-		widget.mouseUp(arg0);
-	} else if (sel == OS.sel_scrollWheel_1) {
-		widget.scrollWheel(arg0);
+		widget.mouseUp(id, sel, arg0);
+	} else if (sel == OS.sel_rightMouseDown_1) {
+		widget.rightMouseDown(id, sel, arg0);
+	} else if (sel == OS.sel_rightMouseUp_1) {
+		widget.rightMouseUp(id, sel, arg0);
+	} else if (sel == OS.sel_otherMouseDown_1) {
+		widget.otherMouseDown(id, sel, arg0);
+	} else if (sel == OS.sel_otherMouseUp_1) {
+		widget.otherMouseUp(id, sel, arg0);
+	} else if (sel == OS.sel_mouseMoved_1) {
+		widget.mouseMoved(id, sel, arg0);
+	} else if (sel == OS.sel_mouseDragged_1) {
+		widget.mouseDragged(id, sel, arg0);
 	} else if (sel == OS.sel_mouseEntered_1) {
-		widget.mouseEntered(arg0);
-	} else if (sel == OS.sel_flagsChanged_1) {
-		widget.flagsChanged(arg0);
+		widget.mouseEntered(id, sel, arg0);
+	} else if (sel == OS.sel_mouseExited_1) {
+		widget.mouseExited(id, sel, arg0);
+	} else if (sel == OS.sel_menuForEvent_1) {
+		return widget.menuForEvent(id);
 	} else if (sel == OS.sel_numberOfRowsInTableView_1) {
 		return widget.numberOfRowsInTableView(arg0);
 	} else if (sel == OS.sel_comboBoxSelectionDidChange_1) {
@@ -3254,8 +3481,6 @@ int windowDelegateProc(int id, int sel, int arg0) {
 		widget.windowDidResize(arg0);
 	} else if (sel == OS.sel_windowDidMove_1) {
 		widget.windowDidMove(arg0);
-	} else if (sel == OS.sel_menuForEvent_1) {
-		return widget.menuForEvent(arg0);
 	} else if (sel == OS.sel_menuWillOpen_1) {
 		widget.menuWillOpen(arg0);
 	} else if (sel == OS.sel_menuWillClose_1) {
@@ -3268,17 +3493,18 @@ int windowDelegateProc(int id, int sel, int arg0) {
 		widget.windowSendEvent(id, arg0);
 	} else if (sel == OS.sel_helpRequested_1) {
 		widget.helpRequested(arg0);
-	} else if (sel == OS.sel_performAction) {
-		widget.performAction(arg0);
+	} else if (sel == OS.sel_scrollWheel_1) {
+		widget.scrollWheel(id, sel, arg0);
+	} else if (sel == OS.sel_pageDown_1) {
+		widget.pageDown(id, sel, arg0);
+	} else if (sel == OS.sel_pageUp_1) {
+		widget.pageUp(id, sel, arg0);
 	}
 	return 0;
 }
 
-
 int windowDelegateProc(int delegate, int sel, int arg0, int arg1) {
-	int jniRef = OS.objc_msgSend(delegate, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
-	Widget widget = (Widget)OS.JNIGetObject(jniRef);
+	Widget widget = getWidget(delegate);
 	if (widget == null) return 0;
 	if (sel == OS.sel_tabView_1willSelectTabViewItem_1) {
 		widget.willSelectTabViewItem(arg0, arg1);
@@ -3292,21 +3518,12 @@ int windowDelegateProc(int delegate, int sel, int arg0, int arg1) {
 		return widget.outlineView_shouldExpandItem(arg0, arg1) ? 1 : 0;
 	} else if (sel == OS.sel_menu_1willHighlightItem_1) {
 		widget.menu_willHighlightItem(arg0, arg1);
-	} else if (sel == OS.sel_drawerWillResizeContents_1toSize_1) {
-		NSPoint pt = new NSPoint();
-		OS.memmove(pt, arg0, NSPoint.sizeof);
-		NSSize size = new NSSize();
-		size.width = pt.x;
-		size.height = pt.y;
-		return widget.drawerWillResizeContents_toSize(arg0, size);
 	}
 	return 0;
 }
 
 int windowDelegateProc(int delegate, int sel, int arg0, int arg1, int arg2) {
-	int jniRef = OS.objc_msgSend(delegate, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
-	Widget widget = (Widget)OS.JNIGetObject(jniRef);
+	Widget widget = getWidget(delegate);
 	if (widget == null) return 0;
 	if (sel == OS.sel_tableView_1objectValueForTableColumn_1row_1) {
 		return widget.tableView_objectValueForTableColumn_row(arg0, arg1, arg2);
@@ -3324,9 +3541,7 @@ int windowDelegateProc(int delegate, int sel, int arg0, int arg1, int arg2) {
 }
 
 int windowDelegateProc(int delegate, int sel, int arg0, int arg1, int arg2, int arg3) {
-	int jniRef = OS.objc_msgSend(delegate, OS.sel_tag);
-	if (jniRef == 0 || jniRef == -1) return 0;
-	Widget widget = (Widget)OS.JNIGetObject(jniRef);
+	Widget widget = getWidget(delegate);
 	if (widget == null) return 0;
 	if (sel == OS.sel_tableView_1willDisplayCell_1forTableColumn_1row_1) {
 		widget.tableView_willDisplayCell_forTableColumn_row(arg0, arg1, arg2, arg3);

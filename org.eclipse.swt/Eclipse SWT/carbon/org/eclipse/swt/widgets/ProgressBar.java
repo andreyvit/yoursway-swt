@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,6 +32,10 @@ import org.eclipse.swt.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#progressbar">ProgressBar snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ProgressBar extends Control {
 	
@@ -148,6 +152,23 @@ public int getSelection () {
     return OS.GetControl32BitValue (handle);
 }
 
+/**
+ * Returns the state of the receiver. The value will be one of:
+ * <ul>
+ * 	<li>{@link SWT#NORMAL}</li>
+ * 	<li>{@link SWT#ERROR}</li>
+ * 	<li>{@link SWT#PAUSED}</li>
+ * </ul>
+ *
+ * @return the state 
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public int getState () {
 	checkWidget ();
 	return SWT.NORMAL;
@@ -222,6 +243,23 @@ public void setSelection (int value) {
 	display.runEventLoopTimers ();
 }
 
+/**
+ * Sets the state of the receiver. The state must be one of these values:
+ * <ul>
+ * 	<li>{@link SWT#NORMAL}</li>
+ * 	<li>{@link SWT#ERROR}</li>
+ * 	<li>{@link SWT#PAUSED}</li>
+ * </ul>
+ *
+ * @param state the new state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setState (int state) {
 	checkWidget ();
 	//NOT IMPLEMENTED

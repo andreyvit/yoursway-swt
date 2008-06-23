@@ -64,7 +64,7 @@ public class Drawer extends Composite {
 			drawer = (SWTDrawer) ((SWTDrawer) new SWTDrawer().alloc()).initWithContentSize(size, edge);
 			drawer.setTag(jniRef);
 		}
-		createHandle(null);
+		createHandle();
 		
 		delegate = (SWTDrawerDelegate)new SWTDrawerDelegate().alloc().init();
 		delegate.setTag(jniRef);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -1704,6 +1704,18 @@ JNIEXPORT jint JNICALL OS_NATIVE(CFURLCreateStringByAddingPercentEscapes)
 	OS_NATIVE_ENTER(env, that, CFURLCreateStringByAddingPercentEscapes_FUNC);
 	rc = (jint)CFURLCreateStringByAddingPercentEscapes((CFAllocatorRef)arg0, (CFStringRef)arg1, (CFStringRef)arg2, (CFStringRef)arg3, arg4);
 	OS_NATIVE_EXIT(env, that, CFURLCreateStringByAddingPercentEscapes_FUNC);
+	return rc;
+}
+#endif
+
+#ifndef NO_CFURLCreateStringByReplacingPercentEscapes
+JNIEXPORT jint JNICALL OS_NATIVE(CFURLCreateStringByReplacingPercentEscapes)
+	(JNIEnv *env, jclass that, jint arg0, jint arg1, jint arg2)
+{
+	jint rc = 0;
+	OS_NATIVE_ENTER(env, that, CFURLCreateStringByReplacingPercentEscapes_FUNC);
+	rc = (jint)CFURLCreateStringByReplacingPercentEscapes((CFAllocatorRef)arg0, (CFStringRef)arg1, (CFStringRef)arg2);
+	OS_NATIVE_EXIT(env, that, CFURLCreateStringByReplacingPercentEscapes_FUNC);
 	return rc;
 }
 #endif
@@ -7658,6 +7670,18 @@ JNIEXPORT jint JNICALL OS_NATIVE(HIObjectSetAccessibilityIgnored)
 }
 #endif
 
+#ifndef NO_HIObjectSetAuxiliaryAccessibilityAttribute
+JNIEXPORT jint JNICALL OS_NATIVE(HIObjectSetAuxiliaryAccessibilityAttribute)
+	(JNIEnv *env, jclass that, jint arg0, jlong arg1, jint arg2, jint arg3)
+{
+	jint rc = 0;
+	OS_NATIVE_ENTER(env, that, HIObjectSetAuxiliaryAccessibilityAttribute_FUNC);
+	rc = (jint)HIObjectSetAuxiliaryAccessibilityAttribute((HIObjectRef)arg0, (UInt64)arg1, (CFStringRef)arg2, (CFTypeRef)arg3);
+	OS_NATIVE_EXIT(env, that, HIObjectSetAuxiliaryAccessibilityAttribute_FUNC);
+	return rc;
+}
+#endif
+
 #ifndef NO_HIScrollViewCreate
 JNIEXPORT jint JNICALL OS_NATIVE(HIScrollViewCreate)
 	(JNIEnv *env, jclass that, jint arg0, jintArray arg1)
@@ -8763,6 +8787,18 @@ JNIEXPORT jboolean JNICALL OS_NATIVE(HIViewIsVisible)
 	OS_NATIVE_ENTER(env, that, HIViewIsVisible_FUNC);
 	rc = (jboolean)HIViewIsVisible((HIViewRef)arg0);
 	OS_NATIVE_EXIT(env, that, HIViewIsVisible_FUNC);
+	return rc;
+}
+#endif
+
+#ifndef NO_HIViewRegionChanged
+JNIEXPORT jint JNICALL OS_NATIVE(HIViewRegionChanged)
+	(JNIEnv *env, jclass that, jint arg0, jint arg1)
+{
+	jint rc = 0;
+	OS_NATIVE_ENTER(env, that, HIViewRegionChanged_FUNC);
+	rc = (jint)HIViewRegionChanged((HIViewRef)arg0, arg1);
+	OS_NATIVE_EXIT(env, that, HIViewRegionChanged_FUNC);
 	return rc;
 }
 #endif
@@ -9909,6 +9945,22 @@ JNIEXPORT jint JNICALL OS_NATIVE(NavDialogSetSaveFileName)
 	OS_NATIVE_ENTER(env, that, NavDialogSetSaveFileName_FUNC);
 	rc = (jint)NavDialogSetSaveFileName((NavDialogRef)arg0, (CFStringRef)arg1);
 	OS_NATIVE_EXIT(env, that, NavDialogSetSaveFileName_FUNC);
+	return rc;
+}
+#endif
+
+#ifndef NO_NavDisposeReply
+JNIEXPORT jint JNICALL OS_NATIVE(NavDisposeReply)
+	(JNIEnv *env, jclass that, jobject arg0)
+{
+	NavReplyRecord _arg0, *lparg0=NULL;
+	jint rc = 0;
+	OS_NATIVE_ENTER(env, that, NavDisposeReply_FUNC);
+	if (arg0) if ((lparg0 = getNavReplyRecordFields(env, arg0, &_arg0)) == NULL) goto fail;
+	rc = (jint)NavDisposeReply(lparg0);
+fail:
+	if (arg0 && lparg0) setNavReplyRecordFields(env, arg0, lparg0);
+	OS_NATIVE_EXIT(env, that, NavDisposeReply_FUNC);
 	return rc;
 }
 #endif

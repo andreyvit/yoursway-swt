@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -63,6 +63,10 @@ import org.eclipse.swt.events.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#table">Table, TableItem, TableColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Table extends Composite {
@@ -88,6 +92,7 @@ public class Table extends Composite {
 	static final int EXPLORER_EXTRA = 2;
 	static final int H_SCROLL_LIMIT = 32;
 	static final int V_SCROLL_LIMIT = 16;
+	static final int DRAG_IMAGE_SIZE = 301;
 	static final boolean EXPLORER_THEME = true;
 	static final int /*long*/ TableProc;
 	static final TCHAR TableClass = new TCHAR (0, OS.WC_LISTVIEW, true);
@@ -5384,16 +5389,89 @@ int /*long*/ windowProc (int /*long*/ hwnd, int msg, int /*long*/ wParam, int /*
 	}
 	if (msg == Display.DI_GETDRAGIMAGE) {
 		/*
-		* Bug in Windows.  For some reason, DI_GETDRAGIMAGE
+		* Bug in Windows.  On Vista, for some reason, DI_GETDRAGIMAGE
 		* returns an image that does not contain strings.
-		* The fix is to disable the table window proc.
 		* 
-		* NOTE: This only happens on Vista.
+		* Bug in Windows. For custom draw control the window origin the 
+		* in HDC is wrong.
+		* 
+		* The fix for both cases is to create the image using PrintWindow(). 
 		*/
-		if (!OS.IsWinCE && OS.WIN32_VERSION >= OS.VERSION (6, 0)) return 0;
-		//TEMPORARY CODE
-		if (hooks (SWT.EraseItem) || hooks (SWT.PaintItem)) return 0;
-//		if (getSelectionCount () != 1) return 0;
+		if ((!OS.IsWinCE && OS.WIN32_VERSION >= OS.VERSION (6, 0)) || hooks (SWT.EraseItem) || hooks (SWT.PaintItem)) {
+			int topIndex = (int)/*64*/OS.SendMessage (handle, OS.LVM_GETTOPINDEX, 0, 0);
+			int selection = (int)/*64*/OS.SendMessage (handle, OS.LVM_GETNEXTITEM, topIndex - 1, OS.LVNI_SELECTED);
+			if (selection == -1) return 0;
+			POINT mousePos = new POINT ();
+			OS.POINTSTOPOINT (mousePos, OS.GetMessagePos ());
+			OS.MapWindowPoints(0, handle, mousePos, 1);
+			RECT clientRect = new RECT ();
+			OS.GetClientRect (handle, clientRect);
+			TableItem item = _getItem (selection);
+			RECT rect = item.getBounds (selection, 0, true, true, true);
+			if ((style & SWT.FULL_SELECTION) != 0) {
+				int width = DRAG_IMAGE_SIZE;
+				rect.left = Math.max (clientRect.left, mousePos.x - width / 2);
+				if (clientRect.right > rect.left + width) {
+					rect.right = rect.left + width;
+				} else {
+					rect.right = clientRect.right;
+					rect.left = Math.max (clientRect.left, rect.right - width);
+				}
+			}
+			int /*long*/ hRgn = OS.CreateRectRgn (rect.left, rect.top, rect.right, rect.bottom);
+			while ((selection = (int)/*64*/OS.SendMessage (handle, OS.LVM_GETNEXTITEM, selection, OS.LVNI_SELECTED)) != -1) {
+				if (rect.bottom - rect.top > DRAG_IMAGE_SIZE) break;
+				if (rect.bottom > clientRect.bottom) break;
+				RECT itemRect = item.getBounds (selection, 0, true, true, true);
+				int /*long*/ rectRgn = OS.CreateRectRgn (rect.left, itemRect.top, rect.right, itemRect.bottom);
+				OS.CombineRgn (hRgn, hRgn, rectRgn, OS.RGN_OR);
+				OS.DeleteObject (rectRgn);
+				rect.bottom = itemRect.bottom;
+			}
+			OS.GetRgnBox (hRgn, rect);
+			
+			/* Create resources */
+			int /*long*/ hdc = OS.GetDC (handle);
+			int /*long*/ memHdc = OS.CreateCompatibleDC (hdc);
+			BITMAPINFOHEADER bmiHeader = new BITMAPINFOHEADER ();
+			bmiHeader.biSize = BITMAPINFOHEADER.sizeof;
+			bmiHeader.biWidth = rect.right - rect.left;
+			bmiHeader.biHeight = -(rect.bottom - rect.top);
+			bmiHeader.biPlanes = 1;
+			bmiHeader.biBitCount = 32;
+			bmiHeader.biCompression = OS.BI_RGB;
+			byte []	bmi = new byte [BITMAPINFOHEADER.sizeof];
+			OS.MoveMemory (bmi, bmiHeader, BITMAPINFOHEADER.sizeof);
+			int /*long*/ [] pBits = new int /*long*/ [1];
+			int /*long*/ memDib = OS.CreateDIBSection (0, bmi, OS.DIB_RGB_COLORS, pBits, 0, 0);
+			if (memDib == 0) SWT.error (SWT.ERROR_NO_HANDLES);
+			int /*long*/ oldMemBitmap = OS.SelectObject (memHdc, memDib);
+			int colorKey = 0x0000FD;
+			POINT pt = new POINT();
+			OS.SetWindowOrgEx (memHdc, rect.left, rect.top, pt);
+			OS.FillRect (memHdc, rect, findBrush (colorKey, OS.BS_SOLID));
+			OS.OffsetRgn (hRgn, -rect.left, -rect.top);
+			OS.SelectClipRgn (memHdc, hRgn);
+			OS.PrintWindow (handle, memHdc, 0);
+			OS.SetWindowOrgEx (memHdc, pt.x, pt.y, null);
+			OS.SelectObject (memHdc, oldMemBitmap);
+			OS.DeleteDC (memHdc);
+			OS.ReleaseDC (0, hdc);
+			OS.DeleteObject (hRgn);
+			
+			SHDRAGIMAGE shdi = new SHDRAGIMAGE ();
+			shdi.hbmpDragImage = memDib;
+			shdi.crColorKey = colorKey;
+			shdi.sizeDragImage.cx = bmiHeader.biWidth;
+			shdi.sizeDragImage.cy = -bmiHeader.biHeight;
+			shdi.ptOffset.x = mousePos.x - rect.left;
+			shdi.ptOffset.y = mousePos.y - rect.top;
+			if ((style & SWT.MIRRORED) != 0) {
+				shdi.ptOffset.x = shdi.sizeDragImage.cx - shdi.ptOffset.x; 
+			}
+			OS.MoveMemory (lParam, shdi, SHDRAGIMAGE.sizeof);
+			return 1;
+		}
 	}
 	return super.windowProc (hwnd, msg, wParam, lParam);
 }

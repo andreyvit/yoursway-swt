@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -115,6 +115,9 @@ import org.eclipse.swt.graphics.*;
  *
  * @see Decorations
  * @see SWT
+ * @see <a href="http://www.eclipse.org/swt/snippets/#shell">Shell snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Shell extends Decorations {
 	int shellHandle, windowGroup;
@@ -353,6 +356,23 @@ public Shell (Shell parent, int style) {
 	this (parent != null ? parent.display : null, parent, style, 0, false);
 }
 
+/**	 
+ * Invokes platform specific functionality to allocate a new shell
+ * that is not embedded.
+ * <p>
+ * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
+ * API for <code>Shell</code>. It is marked public only so that it
+ * can be shared within the packages provided by SWT. It is not
+ * available on all platforms, and should never be called from
+ * application code.
+ * </p>
+ *
+ * @param display the display for the shell
+ * @param handle the handle for the shell
+ * @return a new shell object containing the specified display and handle
+ * 
+ * @since 3.3
+ */
 public static Shell internal_new (Display display, int handle) {
 	return new Shell (display, null, SWT.NO_TRIM, handle, false);
 }
@@ -673,6 +693,19 @@ public void forceActive () {
 	OS.SetFrontProcessWithOptions (new int [] {0, OS.kCurrentProcess}, OS.kSetFrontProcessFrontWindowOnly);
 }
 
+/**
+ * Returns the receiver's alpha value. The alpha value
+ * is between 0 (transparent) and 255 (opaque).
+ *
+ * @return the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public int getAlpha () {
 	checkWidget ();
 	float [] alpha = new float [1];
@@ -694,6 +727,20 @@ int getDrawCount (int control) {
 	return 0;
 }
 
+/**
+ * Returns <code>true</code> if the receiver is currently
+ * in fullscreen state, and false otherwise. 
+ * <p>
+ *
+ * @return the fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public boolean getFullScreen () {
 	checkWidget();
 	return fullScreen;
@@ -1092,13 +1139,17 @@ int kEventWindowGetClickModality (int nextHandler, int theEvent, int userData) {
 	* Feature in the Macintosh. ON_TOP shells are in the kFloatingWindowClass window
 	* group and are not modal disabled by default. The fix is to detect that it should
 	* be disabled and update the event parameters.
+	* 
+	* Bug in Macintosh.  When a kWindowModalityWindowModal window is active the 
+	* default handler of kEventWindowGetClickModality does not properly set the 
+	* kEventParamModalClickResult. The fix is to set it ourselves.
 	*/
-	if ((style & SWT.ON_TOP) != 0) {
-		Shell modalShell = getModalShell ();
-		if (modalShell != null) {
-			int [] modality = new int [1];
+	Shell modalShell = getModalShell ();
+	if (modalShell != null) {
+		int [] modality = new int [1];
+		OS.GetWindowModality (modalShell.shellHandle, modality, null);
+		if ((style & SWT.ON_TOP) != 0 || modality [0] == OS.kWindowModalityWindowModal) {
 			int clickResult = OS.kHIModalClickIsModal | OS.kHIModalClickAnnounce;
-			OS.GetWindowModality (modalShell.shellHandle, modality, null);
 			OS.SetEventParameter (theEvent, OS.kEventParamWindowModality, OS.typeWindowModality, 4, modality);
 			OS.SetEventParameter (theEvent, OS.kEventParamModalClickResult, OS.typeModalClickResult, 4, new int[]{clickResult});
 			OS.SetEventParameter (theEvent, OS.kEventParamModalWindow, OS.typeWindowRef, 4, new int[]{modalShell.shellHandle});
@@ -1390,6 +1441,23 @@ void setActiveControl (Control control) {
 	}
 }
 
+/**
+ * Sets the receiver's alpha value which must be
+ * between 0 (transparent) and 255 (opaque).
+ * <p>
+ * This operation requires the operating system's advanced
+ * widgets subsystem which may not be available on some
+ * platforms.
+ * </p>
+ * @param alpha the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setAlpha (int alpha) {
 	checkWidget ();
 	alpha &= 0xFF;
@@ -1432,6 +1500,29 @@ public void setEnabled (boolean enabled) {
 	}
 }
 
+/**
+ * Sets the full screen state of the receiver.
+ * If the argument is <code>true</code> causes the receiver
+ * to switch to the full screen state, and if the argument is
+ * <code>false</code> and the receiver was previously switched
+ * into full screen state, causes the receiver to switch back
+ * to either the maximmized or normal states.
+ * <p>
+ * Note: The result of intermixing calls to <code>setFullScreen(true)</code>, 
+ * <code>setMaximized(true)</code> and <code>setMinimized(true)</code> will 
+ * vary by platform. Typically, the behavior will match the platform user's 
+ * expectations, but not always. This should be avoided if possible.
+ * </p>
+ * 
+ * @param fullScreen the new fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void setFullScreen (boolean fullScreen) {
 	checkWidget ();
 	this.fullScreen = fullScreen; 
@@ -1686,6 +1777,7 @@ void setWindowVisible (boolean visible) {
 			int inUnavailableWindow = 0;
 			if (parent != null) inUnavailableWindow = OS.GetControlOwner (parent.handle);
 			OS.SetWindowModality (shellHandle, inModalKind, inUnavailableWindow);
+			if (inUnavailableWindow != 0) OS.CollapseWindow (inUnavailableWindow, false);
 		}
 		int topHandle = topHandle ();
 		OS.SetControlVisibility (topHandle, true, false);
@@ -1694,15 +1786,7 @@ void setWindowVisible (boolean visible) {
 			OS.GetWindowActivationScope (shellHandle, scope);
 			OS.SetWindowActivationScope (shellHandle, OS.kWindowActivationScopeNone);
 		}
-		/*
-		* Bug in the Macintosh.  ShowWindow() does not activate the shell when an ON_TOP
-		* shell is active. The fix is to detect that the shell was not activated and
-		* activate it.
-		*/
-		Shell activeShell = null;
-		if ((style & SWT.ON_TOP) == 0) {
-			activeShell = display.getActiveShell ();
-		}
+
 		int shellHandle = this.shellHandle;
 		OS.RetainWindow (shellHandle);
 		OS.ShowWindow (shellHandle);
@@ -1715,8 +1799,20 @@ void setWindowVisible (boolean visible) {
 			OS.SetWindowActivationScope (shellHandle, scope [0]);
 			OS.BringToFront (shellHandle);
 		} else {
-			if (activeShell != null && activeShell == display.getActiveShell () && (activeShell.style & SWT.ON_TOP) != 0) {
-				bringToTop (false);
+			/*
+			* Bug in the Macintosh.  ShowWindow() does not activate the shell when an ON_TOP
+			* shell is visible. The fix is to detect that the shell was not activated and
+			* activate it.
+			*/
+			if (display.getActiveShell () != this) {
+				Shell[] shells = display.getShells();
+				for (int i = 0; i < shells.length; i++) {
+					Shell shell = shells [i];
+					if ((shell.style & SWT.ON_TOP) != 0 && shell.isVisible ()) {
+						bringToTop(false);
+						break;
+					}
+				}
 			}
 		}
 		opened = true;

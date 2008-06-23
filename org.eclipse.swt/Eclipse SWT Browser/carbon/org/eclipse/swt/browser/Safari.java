@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -24,7 +24,7 @@ class Safari extends WebBrowser {
 	int delegate;
 	
 	/* Carbon HIView handle */
-	int webViewHandle;
+	int webViewHandle, webView;
 	int windowBoundsHandler;
 	
 	boolean changingLocation, hasNewFocusElement;
@@ -54,7 +54,6 @@ class Safari extends WebBrowser {
 	static final String ABOUT_BLANK = "about:blank"; //$NON-NLS-1$
 	static final String ADD_WIDGET_KEY = "org.eclipse.swt.internal.addWidget"; //$NON-NLS-1$
 	static final String BROWSER_WINDOW = "org.eclipse.swt.browser.Browser.Window"; //$NON-NLS-1$
-	static final String BROWSER_COCOA_BUTTON = "org.eclipse.swt.browser.Browser.CocoaButton"; //$NON-NLS-1$
 	static final String SAFARI_EVENTS_FIX_KEY = "org.eclipse.swt.internal.safariEventsFix"; //$NON-NLS-1$
 
 	/* event strings */
@@ -96,44 +95,32 @@ public void create (Composite parent, int style) {
 	}
 	
 	/*
-	* Bug in Safari.  For some reason, when a window contains a
-	* WebView, VoiceOver no longer follows focus.  The VoiceOver
-	* cursor (activated by Control+Alt+arrows) continues to work,
-	* but keyboard focus is not tracked.  The fix is to create
-	* and dispose a cocoa button once per window.  This must be
-	* done before the WebView is created or the problem persists.
-	* 
-	* NOTE:  This only happens on OSX 10.5 (Leopard).
+	* Bug in Safari on OSX 10.5 (Leopard) only.  VoiceOver no longer follows focus when
+	* HIWebViewCreate is used to create a WebView.  The VoiceOver cursor (activated by
+	* Control+Alt+arrows) continues to work, but keyboard focus is not tracked.  The fix
+	* is to create the WebView with HICocoaViewCreate (api introduced in OSX 10.5) when
+	* running on OSX 10.5.
 	*/
+	int outControl[] = new int[1];
 	if (OS.VERSION >= 0x1050) {
-		Shell shell = parent.getShell();
-		if (shell.getData(BROWSER_COCOA_BUTTON) == null) {
-			int[] root = new int[1];
-			OS.HIViewFindByID(OS.HIViewGetRoot(OS.GetControlOwner(parent.handle)), OS.kHIViewWindowContentID(), root);
-			int rootHandle = root[0];
-			int buttonHandle = Cocoa.objc_msgSend(Cocoa.objc_msgSend(Cocoa.C_NSButton, Cocoa.S_alloc), Cocoa.S_initWithFrame, new NSRect());
-			int outControl[] = new int[1];
-			Cocoa.HICocoaViewCreate(buttonHandle, 0, outControl);
-			OS.HIViewSetFrame(outControl[0], new CGRect());
-			OS.HIViewSetVisible(outControl[0], false);
-			OS.HIViewAddSubview(rootHandle, outControl[0]);
-			OS.DisposeControl(outControl[0]);
-			shell.setData(BROWSER_COCOA_BUTTON, "true"); //$NON-NLS-1$
+		webView = Cocoa.objc_msgSend(Cocoa.objc_msgSend(Cocoa.C_WebView, Cocoa.S_alloc), Cocoa.S_initWithFrame_frameName_groupName, new NSRect(), 0, 0);
+		if (webView != 0) {
+			Cocoa.HICocoaViewCreate(webView, 0, outControl);
+			webViewHandle = outControl[0];
+			Cocoa.objc_msgSend(webView, Cocoa.S_release);
+		}
+	} else {
+		Cocoa.HIWebViewCreate(outControl);
+		webViewHandle = outControl[0];
+		if (webViewHandle != 0) {
+			webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 		}
 	}
-
-	int outControl[] = new int[1];
-	try {
-		Cocoa.HIWebViewCreate(outControl);
-	} catch (UnsatisfiedLinkError e) {
+	if (webViewHandle == 0) {
 		browser.dispose();
 		SWT.error(SWT.ERROR_NO_HANDLES);
 	}
-	webViewHandle = outControl[0];
-	if (webViewHandle == 0) {
-		browser.dispose();
-		SWT.error(SWT.ERROR_NO_HANDLES);		
-	}
+
 	Display display = browser.getDisplay();
 	display.setData(ADD_WIDGET_KEY, new Object[] {new Integer(webViewHandle), browser});
 
@@ -204,7 +191,6 @@ public void create (Composite parent, int style) {
 		if (showEvent[0] != 0) OS.ReleaseEvent(showEvent[0]);
 	}
 
-	final int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	/*
 	* This code is intentionally commented. Setting a group name is the right thing
 	* to do in order to avoid multiple open window requests. For some reason, Safari
@@ -235,7 +221,6 @@ public void create (Composite parent, int style) {
 					browser.notifyListeners (e.type, e);
 					e.type = SWT.NONE;
 
-					browser.getShell().removeListener(SWT.Activate, this);
 					OS.RemoveEventHandler(windowBoundsHandler);
 					windowBoundsHandler = 0;
 
@@ -250,12 +235,9 @@ public void create (Composite parent, int style) {
 					
 					Cocoa.objc_msgSend(delegate, Cocoa.S_release);
 					OS.DisposeControl(webViewHandle);
+					webView = webViewHandle = 0;
 					html = null;
 					lastHoveredLinkURL = null;
-					break;
-				}
-				case SWT.Activate: {
-					Cocoa.objc_msgSend(Cocoa.objc_msgSend(Cocoa.HIWebViewGetWebView(webViewHandle), Cocoa.S_window), Cocoa.S_makeKeyWindow);
 					break;
 				}
 				case SWT.FocusIn: {
@@ -269,7 +251,6 @@ public void create (Composite parent, int style) {
 	browser.addListener(SWT.Dispose, listener);
 	browser.addListener(SWT.FocusIn, listener);
 	browser.addListener(SWT.KeyDown, listener); /* needed to make browser traversable */
-	browser.getShell().addListener(SWT.Activate, listener);
 	
 	if (Callback3 == null) Callback3 = new Callback(this.getClass(), "eventProc3", 3); //$NON-NLS-1$
 	int callback3Address = Callback3.getAddress();
@@ -330,8 +311,8 @@ public void create (Composite parent, int style) {
 	Cocoa.objc_msgSend(webView, Cocoa.S_setApplicationNameForUserAgent, sHandle);
 	OS.CFRelease(sHandle);
 
-	if (display.getActiveShell() == browser.getShell()) {
-		Cocoa.objc_msgSend(Cocoa.objc_msgSend(Cocoa.HIWebViewGetWebView(webViewHandle), Cocoa.S_window), Cocoa.S_makeKeyWindow);
+	if (OS.VERSION < 0x1050 && display.getActiveShell() == browser.getShell()) {
+		Cocoa.objc_msgSend(Cocoa.objc_msgSend(webView, Cocoa.S_window), Cocoa.S_makeKeyWindow);
 	}
 
 	if (!Initialized) {
@@ -360,7 +341,6 @@ static int eventProc7(int webview, int userData, int selector, int arg0, int arg
 
 public boolean back() {
 	html = null;
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	return Cocoa.objc_msgSend(webView, Cocoa.S_goBack) != 0;
 }
 
@@ -370,7 +350,6 @@ public boolean execute(String script) {
 	script.getChars(0, length, buffer, 0);
 	int string = OS.CFStringCreateWithCharacters(0, buffer, length);
 
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	int value = Cocoa.objc_msgSend(webView, Cocoa.S_stringByEvaluatingJavaScriptFromString, string);
 	OS.CFRelease(string);
 	return value != 0;
@@ -378,12 +357,10 @@ public boolean execute(String script) {
 
 public boolean forward() {
 	html = null;
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	return Cocoa.objc_msgSend(webView, Cocoa.S_goForward) != 0;
 }
 
 public String getText() {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	int mainFrame = Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame);
 	int dataSource = Cocoa.objc_msgSend(mainFrame, Cocoa.S_dataSource);
 	if (dataSource == 0) return "";	//$NON-NLS-1$
@@ -545,24 +522,34 @@ int handleCallback(int nextHandler, int theEvent) {
 						if ((modifiers[0] & OS.cmdKey) != 0) {
 							switch (chars[0]) {
 								case 'v': {
-									int webView = Cocoa.HIWebViewGetWebView (webViewHandle);
 									Cocoa.objc_msgSend (webView, Cocoa.S_paste);
 									return OS.noErr;
 								}
 								case 'c': {
-									int webView = Cocoa.HIWebViewGetWebView (webViewHandle);
 									Cocoa.objc_msgSend (webView, Cocoa.S_copy);
 									return OS.noErr;
 								}
 								case 'x': {
-									int webView = Cocoa.HIWebViewGetWebView (webViewHandle);
 									Cocoa.objc_msgSend (webView, Cocoa.S_cut);
 									return OS.noErr;
 								}
 							}
 						}
 					}
-					break;
+					/*
+					* Bug in Carbon.  OSX crashes if a HICocoaView is disposed during a key event,
+					* presumably as a result of attempting to use it after its refcount has reached
+					* 0.  The workaround is to temporarily add an extra ref to the view and its
+					* ancestor while the DOM listener is handling the event, in case the
+					* Browser gets disposed in a callback.
+					*/
+					int handle = webViewHandle, root = OS.HIViewGetSuperview (webViewHandle);
+					OS.CFRetain (handle);
+					OS.CFRetain (root);
+					int result = OS.CallNextEventHandler (nextHandler, theEvent);
+					OS.CFRelease (handle);
+					OS.CFRelease (root);
+					return result;
 				}
 			}
 		case OS.kEventClassTextInput:
@@ -637,17 +624,14 @@ int handleCallback(int selector, int arg0, int arg1, int arg2, int arg3) {
 }
 
 public boolean isBackEnabled() {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	return Cocoa.objc_msgSend(webView, Cocoa.S_canGoBack) != 0;
 }
 
 public boolean isForwardEnabled() {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	return Cocoa.objc_msgSend(webView, Cocoa.S_canGoForward) != 0;
 }
 
 public void refresh() {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	Cocoa.objc_msgSend(webView, Cocoa.S_reload, 0);
 }
 
@@ -683,8 +667,6 @@ void _setText(String html) {
 	*/	
 	int URL = Cocoa.objc_msgSend(Cocoa.C_NSURL, Cocoa.S_URLWithString, URLString);
 	OS.CFRelease(URLString);
-
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	
 	//mainFrame = [webView mainFrame];
 	int mainFrame = Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame);
@@ -720,8 +702,6 @@ public boolean setUrl(String url) {
 	//request = [NSURLRequest requestWithURL:(NSURL*)inURL];
 	int request= Cocoa.objc_msgSend(Cocoa.C_NSURLRequest, Cocoa.S_requestWithURL, inURL);
 
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
-
 	//mainFrame = [webView mainFrame];
 	int mainFrame= Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame);
 
@@ -733,13 +713,11 @@ public boolean setUrl(String url) {
 
 public void stop() {
 	html = null;
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	Cocoa.objc_msgSend(webView, Cocoa.S_stopLoading, 0);
 }
 
 /* WebFrameLoadDelegate */
 void didChangeLocationWithinPageForFrame(int frame) {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	//id url= [[[[frame provisionalDataSource] request] URL] absoluteString];
 	int dataSource = Cocoa.objc_msgSend(frame, Cocoa.S_dataSource);
 	int request = Cocoa.objc_msgSend(dataSource, Cocoa.S_request);
@@ -780,7 +758,6 @@ void didChangeLocationWithinPageForFrame(int frame) {
 }
 
 void didFailProvisionalLoadWithError(int error, int frame) {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	if (frame == Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame)) {
 		/*
 		* Feature on Safari.  The identifier is used here as a marker for the events 
@@ -800,7 +777,6 @@ void didFailProvisionalLoadWithError(int error, int frame) {
 }
 
 void didFinishLoadForFrame(int frame) {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	hookDOMFocusListeners(frame);
 	hookDOMMouseListeners(frame);
 	if (frame == Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame)) {
@@ -887,10 +863,12 @@ void didFinishLoadForFrame(int frame) {
 
 void hookDOMFocusListeners(int frame) {
 	/*
-	* WebKit's DOM listener api became functional in OSX 10.4, so if an earlier
-	* version than this is detected then do not hook the DOM listeners.
+	* These listeners only need to be hooked for OSX 10.4 (Tiger).  The WebKit on
+	* OSX < 10.4 does not send these DOM events, and tab traversals that exit
+	* Safari are handled as of OSX 10.5 as a result of using HICocoaViewCreate,
+	* which makes these listeners unnecessary.
 	*/
-	if (OS.VERSION < 0x1040) return;
+	if (!(0x1040 <= OS.VERSION && OS.VERSION < 0x1050)) return;
 
 	int document = Cocoa.objc_msgSend(frame, Cocoa.S_DOMDocument);
 
@@ -980,7 +958,6 @@ void hookDOMMouseListeners(int frame) {
 }
 
 void didReceiveTitle(int title, int frame) {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	if (frame == Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame)) {
 		int length = OS.CFStringGetLength(title);
 		char[] buffer = new char[length];
@@ -1013,7 +990,6 @@ void didStartProvisionalLoadForFrame(int frame) {
 }
 
 void didCommitLoadForFrame(int frame) {
-	int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 	//id url= [[[[frame provisionalDataSource] request] URL] absoluteString];
 	int dataSource = Cocoa.objc_msgSend(frame, Cocoa.S_dataSource);
 	int request = Cocoa.objc_msgSend(dataSource, Cocoa.S_request);
@@ -1157,7 +1133,6 @@ int identifierForInitialRequest(int request, int dataSource) {
 	int identifier = Cocoa.objc_msgSend(Cocoa.C_NSNumber, Cocoa.S_numberWithInt, resourceCount++);
 		
 	if (this.identifier == 0) {
-		int webView = Cocoa.HIWebViewGetWebView(webViewHandle);
 		int frame = Cocoa.objc_msgSend(dataSource, Cocoa.S_webFrame);
 		if (frame == Cocoa.objc_msgSend(webView, Cocoa.S_mainFrame)) this.identifier = identifier;
 	}
@@ -1185,14 +1160,14 @@ int createWebViewWithRequest(int request) {
 			openWindowListeners[i].open(newEvent);
 		}
 	}
-	int webView = 0;
 
+	int webView = 0;
 	Browser browser = null;
 	if (newEvent.browser != null && newEvent.browser.webBrowser instanceof Safari) {
 		browser = newEvent.browser;
 	}
 	if (browser != null && !browser.isDisposed()) {
-		webView = Cocoa.HIWebViewGetWebView(((Safari)browser.webBrowser).webViewHandle);
+		webView = ((Safari)browser.webBrowser).webView;
 		
 		if (request != 0) {
 			//mainFrame = [webView mainFrame];
@@ -1335,8 +1310,8 @@ int contextMenuItemsForElement(int element, int defaultMenuItems) {
 	event.x = pt.h;
 	event.y = pt.v;
 	browser.notifyListeners(SWT.MenuDetect, event);
+	if (!event.doit || browser.isDisposed()) return 0;
 	Menu menu = browser.getMenu();
-	if (!event.doit) return 0;
 	if (menu != null && !menu.isDisposed()) {
 		if (event.x != pt.h || event.y != pt.v) {
 			menu.setLocation(event.x, event.y);
@@ -1547,27 +1522,38 @@ void handleEvent(int evt) {
 			keyEvent.type = SWT.KeyUp;
 		}
 		keyEvent.keyCode = translateKey(keyCode);
-		keyEvent.character = (char)charCode;
+		/*
+		* Safari maps the Delete key's character to 0xf728.  Detect
+		* this key and set its character to SWT.DEL so that the
+		* Browser's key events are consistent with other controls.
+		*/
+		if (keyEvent.keyCode == SWT.DEL) {
+			keyEvent.character = SWT.DEL;
+		} else {
+			keyEvent.character = (char)charCode;
+		}
 		keyEvent.stateMask = (alt ? SWT.ALT : 0) | (ctrl ? SWT.CTRL : 0) | (shift ? SWT.SHIFT : 0) | (meta ? SWT.COMMAND : 0);
 		browser.notifyListeners(keyEvent.type, keyEvent);
+		if (browser.isDisposed()) {
+			Cocoa.objc_msgSend(evt, Cocoa.S_preventDefault);
+			return;
+		}
 
 		boolean doit = keyEvent.doit;
 		/*
-		* Bug in Safari.  Attempting to traverse out of Safari backwards (Shift+Tab) leaves
-		* Safari in a strange state where it no longer has focus but still receives keys.
-		* The Carbon-based Safari examples have the same problem.  The workaround is to
-		* only allow forward Tab traversals within the Browser.
+		* Bug in Safari.  As a result of using HIWebViewCreate on OSX versions < 10.5 (Leopard), attempting
+		* to traverse out of Safari backwards (Shift+Tab) leaves it in a strange state where Safari no
+		* longer has focus but still receives keys.  The Carbon-based Safari examples have the same
+		* problem.  The workaround is to only allow forward Tab traversals in the Browser on OSX < 10.5.
 		*/
-		if (doit && keyEvent.keyCode == SWT.TAB && (keyEvent.stateMask & SWT.SHIFT) != 0) {
+		if (doit && OS.VERSION < 0x1050 && keyEvent.keyCode == SWT.TAB && (keyEvent.stateMask & SWT.SHIFT) != 0) {
 			doit = false;
 		}
 		if (!doit) {
 			Cocoa.objc_msgSend(evt, Cocoa.S_preventDefault);
 		} else {
-			if (keyEvent.keyCode == SWT.TAB && DOMEVENT_KEYUP.equals(typeString)) {
-				if (!hasNewFocusElement) {
-					browser.traverse(SWT.TRAVERSE_TAB_NEXT);
-				}
+			if (!hasNewFocusElement && keyEvent.keyCode == SWT.TAB && DOMEVENT_KEYUP.equals(typeString)) {
+				browser.traverse(SWT.TRAVERSE_TAB_NEXT);
 				hasNewFocusElement = false;
 			}
 		}
@@ -1618,6 +1604,7 @@ void handleEvent(int evt) {
 	}
 
 	browser.notifyListeners (mouseEvent.type, mouseEvent);
+	if (browser.isDisposed()) return;
 	if (detail == 2 && DOMEVENT_MOUSEDOWN.equals (typeString)) {
 		int button = Cocoa.objc_msgSend(evt, Cocoa.S_button);
 		mouseEvent = new Event ();

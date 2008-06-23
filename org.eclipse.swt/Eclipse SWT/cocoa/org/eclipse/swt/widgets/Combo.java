@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -50,6 +50,9 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p>
  *
  * @see List
+ * @see <a href="http://www.eclipse.org/swt/snippets/#combo">Combo snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Combo extends Composite {
 	int textLimit = LIMIT;
@@ -364,16 +367,12 @@ void createHandle () {
 		widget.menu().setAutoenablesItems(false);
 		widget.setTarget(widget);
 		widget.setAction(OS.sel_sendSelection);
-		widget.setTag(jniRef);
 		view = widget;
-		parent.view.addSubview_(widget);
 	} else {
 		NSComboBox widget = (NSComboBox)new SWTComboBox().alloc();
 		widget.initWithFrame(new NSRect());
-		widget.setTag(jniRef);
 		widget.setDelegate(widget);
 		view = widget;
-		parent.contentView().addSubview_(widget);
 	}
 }
 
@@ -1186,6 +1185,24 @@ public void setItems (String [] items) {
 	}
 }
 
+/**
+ * Marks the receiver's list as visible if the argument is <code>true</code>,
+ * and marks it invisible otherwise.
+ * <p>
+ * If one of the receiver's ancestors is not visible or some
+ * other condition makes the receiver not visible, marking
+ * it visible may not actually cause it to be displayed.
+ * </p>
+ *
+ * @param visible the new visibility state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 /*public*/ void setListVisible (boolean visible) {
 	checkWidget ();
 	if ((style & SWT.READ_ONLY) != 0) {

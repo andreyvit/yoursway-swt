@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -62,12 +62,13 @@ import org.eclipse.swt.graphics.*;
  * </pre></code>
  * </p><p>
  * Note that although this class is a subclass of <code>Composite</code>,
- * it does not make sense to add <code>Control</code> children to it,
- * or set a layout on it.
+ * it does not normally make sense to add <code>Control</code> children to
+ * it, or set a layout on it, unless implementing something like a cell
+ * editor.
  * </p><p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL</dd>
+ * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL, NO_SCROLL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection, DefaultSelection, Collapse, Expand, SetData, MeasureItem, EraseItem, PaintItem</dd>
  * </dl>
@@ -76,6 +77,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Tree extends Composite {
 	TreeItem [] items;
@@ -131,6 +136,9 @@ public class Tree extends Composite {
  * @see SWT#SINGLE
  * @see SWT#MULTI
  * @see SWT#CHECK
+ * @see SWT#FULL_SELECTION
+ * @see SWT#VIRTUAL
+ * @see SWT#NO_SCROLL
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
@@ -835,6 +843,23 @@ public void deselectAll () {
 	ignoreSelect = false;
 }
 
+/**
+ * Deselects an item in the receiver.  If the item was already
+ * deselected, it remains deselected.
+ *
+ * @param item the item to be deselected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void deselect (TreeItem item) {
 	checkWidget ();
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -1959,7 +1984,6 @@ int helpProc (int inControl, int inGlobalMouse, int inRequest, int outContentPro
 					OS.memmove(pt, new int[] {inGlobalMouse}, 4);
 					pt.h -= windowLeft;
 					pt.v -= windowTop;
-					if (!contains (pt.h, pt.v)) break;
 					String toolTipText = null;
 					int tagSide = OS.kHMAbsoluteCenterAligned;
 					CGPoint inPt = new CGPoint ();
@@ -1981,6 +2005,7 @@ int helpProc (int inControl, int inGlobalMouse, int inRequest, int outContentPro
 							if (startX <= x && x < startX + width) {
 								toolTipText = column.toolTipText;
 								rect.left = (short) startX;
+								rect.top = (short) 0;
 								rect.right = (short) (rect.left + width);
 								rect.bottom = (short) (rect.top + headerHeight);
 								tagSide = OS.kHMOutsideBottomRightAligned;
@@ -2428,68 +2453,80 @@ int itemNotificationProc (int browser, int id, int message) {
 }
 
 int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
-	int code = OS.CallNextEventHandler (nextHandler, theEvent);
-	int [] ref = new int [1];
-	OS.GetEventParameter (theEvent, OS.kEventParamAccessibleObject, OS.typeCFTypeRef, null, 4, null, ref);
-	int axuielementref = ref [0];
-	DataBrowserAccessibilityItemInfo itemInfo = new DataBrowserAccessibilityItemInfo ();
-	int err = OS.AXUIElementGetDataBrowserItemInfo (axuielementref, handle, 0, itemInfo);
-	if (err == OS.noErr && itemInfo.v0_columnProperty != OS.kDataBrowserItemNoProperty && itemInfo.v0_item != OS.kDataBrowserNoItem && itemInfo.v0_propertyPart == OS.kDataBrowserPropertyEnclosingPart) {
-		int columnIndex = 0;
-		for (columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-			if (columns [columnIndex].id == itemInfo.v0_columnProperty) break;
+	int code = OS.eventNotHandledErr;
+	int [] stringRef = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
+	int length = 0;
+	if (stringRef [0] != 0) length = OS.CFStringGetLength (stringRef [0]);
+	char [] buffer = new char [length];
+	CFRange range = new CFRange ();
+	range.length = length;
+	OS.CFStringGetCharacters (stringRef [0], range, buffer);
+	String attributeName = new String(buffer);
+	if (attributeName.equals(OS.kAXHeaderAttribute)) {
+		short [] height = new short [1];
+		OS.GetDataBrowserListViewHeaderBtnHeight (handle, height);
+		if (height [0] == 0) {
+			/*
+			* Bug in the Macintosh.  Even when the header is not visible,
+			* VoiceOver still reports each column header's role for every row.
+			* This is confusing and overly verbose.  The fix is to return
+			* "no header" when the screen reader asks for the header, by
+			* returning noErr without setting the event parameter.
+			*/
+			code = OS.noErr;
 		}
-		if (columnIndex != columnCount || columnCount == 0) {
-			int id = itemInfo.v0_item;
-			TreeItem treeItem = _getItem (id, false);
-			int [] stringRef = new int [1];
-			OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
-			int length = 0;
-			if (stringRef [0] != 0) length = OS.CFStringGetLength (stringRef [0]);
-			char [] buffer = new char [length];
-			CFRange range = new CFRange ();
-			range.length = length;
-			OS.CFStringGetCharacters (stringRef [0], range, buffer);
-			String attributeName = new String(buffer);
-			if (attributeName.equals(OS.kAXChildrenAttribute)) {
-				int children = OS.CFArrayCreateMutable (OS.kCFAllocatorDefault, 0, 0);
-				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFMutableArrayRef, 4, new int [] {children});
-				OS.CFRelease(children);
-				return OS.noErr;
+	} else {
+		int [] ref = new int [1];
+		OS.GetEventParameter (theEvent, OS.kEventParamAccessibleObject, OS.typeCFTypeRef, null, 4, null, ref);
+		int axuielementref = ref [0];
+		DataBrowserAccessibilityItemInfo itemInfo = new DataBrowserAccessibilityItemInfo ();
+		int err = OS.AXUIElementGetDataBrowserItemInfo (axuielementref, handle, 0, itemInfo);
+		if (err == OS.noErr && itemInfo.v0_columnProperty != OS.kDataBrowserItemNoProperty && itemInfo.v0_item != OS.kDataBrowserNoItem && itemInfo.v0_propertyPart == OS.kDataBrowserPropertyEnclosingPart) {
+			int columnIndex = 0;
+			for (columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+				if (columns [columnIndex].id == itemInfo.v0_columnProperty) break;
 			}
-			String text = null;
-			if (attributeName.equals (OS.kAXRoleAttribute)) {
-				text = OS.kAXStaticTextRole;
-			}
-			if (attributeName.equals (OS.kAXRoleDescriptionAttribute)) {
-				buffer = new char [OS.kAXStaticTextRole.length ()];
-				OS.kAXStaticTextRole.getChars (0, buffer.length, buffer, 0);
-				stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
-				if (stringRef [0] != 0) {
-					int stringRef2 = OS.HICopyAccessibilityRoleDescription (stringRef [0], 0);
-					OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, new int [] {stringRef2});
-					OS.CFRelease(stringRef [0]);
-					OS.CFRelease(stringRef2);
-					return OS.noErr;
-				}
-			}
-			if (attributeName.equals (OS.kAXTitleAttribute) || attributeName.equals (OS.kAXDescriptionAttribute)) {
-				text = treeItem.getText (columnIndex);
-			}
-			if (text != null) {
-				buffer = new char [text.length ()];
-				text.getChars (0, buffer.length, buffer, 0);
-				stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
-				if (stringRef [0] != 0) {
-					OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
-					OS.CFRelease(stringRef [0]);
-					return OS.noErr;
+			if (columnIndex != columnCount || columnCount == 0) {
+				int id = itemInfo.v0_item;
+				TreeItem treeItem = _getItem (id, false);
+				if (attributeName.equals (OS.kAXRoleAttribute) || attributeName.equals (OS.kAXRoleDescriptionAttribute)) {
+					String roleText = OS.kAXStaticTextRole;
+					buffer = new char [roleText.length ()];
+					roleText.getChars (0, buffer.length, buffer, 0);
+					stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+					if (stringRef [0] != 0) {
+						if (attributeName.equals (OS.kAXRoleAttribute)) {
+							OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+						} else { // kAXRoleDescriptionAttribute
+							int stringRef2 = OS.HICopyAccessibilityRoleDescription (stringRef [0], 0);
+							OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, new int [] {stringRef2});
+							OS.CFRelease(stringRef2);
+						}
+						OS.CFRelease(stringRef [0]);
+						code = OS.noErr;
+					}
+				} else if (attributeName.equals(OS.kAXChildrenAttribute)) {
+					int children = OS.CFArrayCreateMutable (OS.kCFAllocatorDefault, 0, 0);
+					OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFMutableArrayRef, 4, new int [] {children});
+					OS.CFRelease(children);
+					code = OS.noErr;
+				} else if (attributeName.equals (OS.kAXTitleAttribute) || attributeName.equals (OS.kAXDescriptionAttribute)) {
+					String text = treeItem.getText (columnIndex);
+					buffer = new char [text.length ()];
+					text.getChars (0, buffer.length, buffer, 0);
+					stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+					if (stringRef [0] != 0) {
+						OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+						OS.CFRelease(stringRef [0]);
+						code = OS.noErr;
+					}
 				}
 			}
 		}
 	}
 	if (accessible != null) {
-		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, userData);
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
 	}
 	return code;
 }
@@ -2794,6 +2831,23 @@ public void selectAll () {
 	ignoreSelect = false;
 }
 
+/**
+ * Selects an item in the receiver.  If the item was already
+ * selected, it remains selected.
+ *
+ * @param item the item to be selected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void select (TreeItem item) {
 	checkWidget ();
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -2997,9 +3051,9 @@ void setItemCount (TreeItem parentItem, int count) {
 	callbacks.v1_itemCompareCallback = 0;
 	OS.SetDataBrowserCallbacks (handle, callbacks);
 	int [] ids = parentItem == null ? childIds : parentItem.childIds;
+	int removeCount = 0;
 	if (count < itemCount) {
 		int [] removeIds = new int [itemCount - count];
-		int removeCount = 0;
 		for (int index = ids.length - 1; index >= count; index--) {
 			int id = ids [index];
 			if (id != 0) {
@@ -3008,7 +3062,7 @@ void setItemCount (TreeItem parentItem, int count) {
 					item.dispose ();
 				} else {
 					if (parentItem == null || parentItem.getExpanded ()) {
-						removeIds [removeIds.length - removeCount] = id;
+						removeIds [removeIds.length - removeCount - 1] = id;
 						removeCount++;
 						visibleCount--;
 					}
@@ -3084,6 +3138,7 @@ void setItemCount (TreeItem parentItem, int count) {
 	}
 	setRedraw (true);
 	if (itemCount == 0 && parentItem != null) parentItem.redraw (OS.kDataBrowserNoItem);
+	if (removeCount != 0) fixScrollBar ();
 }
 
 /*public*/ void setItemHeight (int itemHeight) {
@@ -3166,7 +3221,26 @@ boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
 	OS.GetDataBrowserHasScrollBars (handle, horiz, vert);
 	if ((bar.style & SWT.H_SCROLL) != 0) horiz [0] = visible;
 	if ((bar.style & SWT.V_SCROLL) != 0) vert [0] = visible;
-	return OS.SetDataBrowserHasScrollBars (handle, horiz [0], vert [0]) == OS.noErr;
+	if (!visible) {
+		bar.redraw ();
+		bar.deregister ();
+	}
+	if (OS.SetDataBrowserHasScrollBars (handle, horiz [0], vert [0]) == OS.noErr) {
+		if (visible) {
+			bar.handle = findStandardBar (bar.style);
+			bar.register ();
+			bar.hookEvents ();
+			bar.redraw ();
+		} else {
+			bar.handle = 0;
+		}
+		return true;
+	} else {
+		if (!visible) {
+			bar.register ();
+		}
+	}
+	return false;
 }
 
 boolean setScrollWidth (boolean set) {
@@ -3380,15 +3454,13 @@ public void setTopItem (TreeItem item) {
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if (item.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	showItem (item, false);
-	int columnId = (style & SWT.CHECK) != 0 ? CHECK_COLUMN_ID : columnCount == 0 ? column_id : columns [0].id;
-	OS.RevealDataBrowserItem (handle, item.id, columnId, (byte) OS.kDataBrowserRevealWithoutSelecting);
-	Rect rect = new Rect ();
-	if (OS.GetDataBrowserItemPartBounds (handle, item.id, column_id, OS.kDataBrowserPropertyEnclosingPart, rect) == OS.noErr) {
-		int border = getBorderWidth ();
-		int [] top = new int [1], left = new int [1];
-		OS.GetDataBrowserScrollPosition (handle, top, left);
-		OS.SetDataBrowserScrollPosition (handle, Math.max (0, top [0] + rect.top - border - getHeaderHeight ()), left [0]);
-	}
+	int itemHeight = getItemHeight ();
+    int [] top = new int [1], left = new int [1];
+    OS.GetDataBrowserScrollPosition (handle, top, left);
+    int [] index = new int [1];
+    OS.GetDataBrowserTableViewItemRow (handle, item.id, index);
+    top [0] = Math.max (0, Math.min (itemHeight * visibleCount + getHeaderHeight () - getClientArea ().height, index [0] * itemHeight));
+    OS.SetDataBrowserScrollPosition (handle, top [0], item.parentItem != null ? left [0] : 0);
 }
 
 /**

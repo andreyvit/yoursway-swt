@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,8 +14,8 @@
 
 #ifdef NATIVE_STATS
 
-int OS_nativeFunctionCount = 320;
-int OS_nativeFunctionCallCount[320];
+int OS_nativeFunctionCount = 328;
+int OS_nativeFunctionCallCount[328];
 char * OS_nativeFunctionNames[] = {
 	"CGWarpMouseCursorPosition",
 	"CloseRgn",
@@ -64,10 +64,12 @@ char * OS_nativeFunctionNames[] = {
 	"class_1addIvar",
 	"class_1addMethod",
 	"drawRect_1CALLBACK",
+	"hitTest_1CALLBACK",
 	"memmove__ILorg_eclipse_swt_internal_cocoa_NSRect_2I",
 	"memmove__Lorg_eclipse_swt_internal_cocoa_NSPoint_2II",
 	"memmove__Lorg_eclipse_swt_internal_cocoa_NSRange_2II",
 	"memmove__Lorg_eclipse_swt_internal_cocoa_NSRect_2II",
+	"memmove__Lorg_eclipse_swt_internal_cocoa_NSSize_2II",
 	"objc_1allocateClassPair",
 	"objc_1getClass",
 	"objc_1lookUpClass",
@@ -246,7 +248,10 @@ char * OS_nativeFunctionNames[] = {
 	"objc_1msgSend__II_3III",
 	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2I",
 	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2II",
+	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2IIIII",
+	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSPoint_2",
 	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSRect_2",
+	"objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSSize_2",
 	"objc_1msgSend_1fpret__II",
 	"objc_1msgSend_1fpret__IID",
 	"objc_1msgSend_1fpret__IIF",
@@ -337,6 +342,9 @@ char * OS_nativeFunctionNames[] = {
 	"object_1getInstanceVariable",
 	"object_1setInstanceVariable",
 	"sel_1registerName",
+	"setFrameOrigin_1CALLBACK",
+	"setFrameSize_1CALLBACK",
+	"setFrame_1CALLBACK",
 };
 
 #define STATS_NATIVE(func) Java_org_eclipse_swt_tools_internal_NativeStats_##func

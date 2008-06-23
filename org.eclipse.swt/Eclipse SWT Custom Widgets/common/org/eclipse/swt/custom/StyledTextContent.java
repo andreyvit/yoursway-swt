@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -138,7 +138,8 @@ public String getTextRange(int start, int length);
  * Remove the specified text changed listener.
  * <p>
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT when listener is null</li>
  * </ul>

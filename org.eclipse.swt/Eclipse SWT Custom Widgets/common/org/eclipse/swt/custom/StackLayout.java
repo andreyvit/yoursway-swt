@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -60,6 +60,10 @@ import org.eclipse.swt.widgets.*;
  * 		} 	
  * 	}
  * </code></pre>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#stacklayout">StackLayout snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: LayoutExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class StackLayout extends Layout {

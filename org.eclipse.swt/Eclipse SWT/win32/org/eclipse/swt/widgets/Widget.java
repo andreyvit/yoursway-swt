@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -42,6 +42,7 @@ import org.eclipse.swt.events.*;
  * </p>
  *
  * @see #checkSubclass
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public abstract class Widget {
@@ -347,8 +348,8 @@ protected void checkWidget () {
 		* that the current thread is not the Display thread.
 		* 
 		* NOTE: Despite the fact that Thread.currentThread()
-		* is used in other places, the failure has only been
-		* observed here.
+		* is used in other places, the failure has not been
+		* observed in all places where it is called. 
 		*/
 		if (display.threadId != OS.GetCurrentThreadId ()) {
 			error (SWT.ERROR_THREAD_INVALID_ACCESS);
@@ -896,7 +897,7 @@ void releaseWidget () {
  * type is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -930,7 +931,7 @@ public void removeListener (int eventType, Listener listener) {
  * </p>
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -954,7 +955,7 @@ protected void removeListener (int eventType, SWTEventListener listener) {
  * Removes the listener from the collection of listeners who will
  * be notified when the widget is disposed.
  *
- * @param listener the listener which should no longer be notified when the receiver is disposed
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>

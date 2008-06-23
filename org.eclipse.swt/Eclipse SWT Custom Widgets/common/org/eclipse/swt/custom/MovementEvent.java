@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -16,6 +16,8 @@ import org.eclipse.swt.events.*;
  * This event is sent when a new offset is required based on the current
  * offset and a movement type.
  * 
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ *
  * @since 3.3
  */
 public class MovementEvent extends TypedEvent {
@@ -52,7 +54,13 @@ public class MovementEvent extends TypedEvent {
 	public int movement;
 	
 	static final long serialVersionUID = 3978765487853324342L;
-	
+
+/**
+ * Constructs a new instance of this class based on the
+ * information in the given event.
+ *
+ * @param e the event containing the information
+ */
 public MovementEvent(StyledTextEvent e) {
 	super(e);
 	lineOffset = e.detail;

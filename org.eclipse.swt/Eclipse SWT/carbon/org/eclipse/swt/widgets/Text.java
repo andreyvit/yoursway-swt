@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,13 @@ import org.eclipse.swt.graphics.*;
 /**
  * Instances of this class are selectable user interface
  * objects that allow the user to enter and modify text.
+ * Text controls can be either single or multi-line.
+ * When a text control is created with a border, the
+ * operating system includes a platform specific inset
+ * around the contents of the control.  When created
+ * without a border, an effort is made to remove the
+ * inset such that the preferred size of the control
+ * is the same size as the contents.
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
@@ -43,6 +50,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#text">Text snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Text extends Scrollable {
 	int txnObject, frameHandle;
@@ -79,6 +90,15 @@ public class Text extends Scrollable {
 		LIMIT = 0x7FFFFFFF;
 		DELIMITER = "\r";
 	}
+
+	static final String [] AX_ATTRIBUTES = {
+		OS.kAXTitleAttribute,
+		OS.kAXValueAttribute,
+		OS.kAXNumberOfCharactersAttribute,
+		OS.kAXSelectedTextAttribute,
+		OS.kAXSelectedTextRangeAttribute,
+		OS.kAXStringForRangeParameterizedAttribute,
+	};
 
 /**
  * Constructs a new instance of this class given its parent
@@ -246,7 +266,7 @@ public void append (String string) {
 		OS.TXNSetSelection (txnObject, OS.kTXNEndOffset, OS.kTXNEndOffset);
 		OS.TXNShowSelection (txnObject, false);
 	}
-	if (string.length () != 0) sendEvent (SWT.Modify);
+	if (string.length () != 0) sendModifyEvent (true);
 }
 
 static int checkStyle (int style) {
@@ -643,7 +663,7 @@ public void cut () {
 		}
 	}
 	Point newSelection = getSelection ();
-	if (!cut || !oldSelection.equals (newSelection)) sendEvent (SWT.Modify);
+	if (!cut || !oldSelection.equals (newSelection)) sendModifyEvent (true);
 }
 
 Color defaultBackground () {
@@ -679,6 +699,10 @@ boolean dragDetect (int x, int y, boolean filter, boolean [] consume) {
 int focusPart () {
 	if ((style & SWT.SEARCH) != 0) return OS.kControlEditTextPart;
 	return super.focusPart ();
+}
+
+String [] getAxAttributes () {
+	return AX_ATTRIBUTES;
 }
 
 public int getBorderWidth () {
@@ -957,7 +981,7 @@ int getPosition (int x, int y) {
 	return OS.TXNHIPointToOffset (txnObject, iPoint, oOffset) == OS.noErr ? oOffset [0] : -1;
 }
 
-public int getPosition (Point point) {
+/*public*/ int getPosition (Point point) {
 	checkWidget ();
 	if (point == null) error (SWT.ERROR_NULL_ARGUMENT);
 	return getPosition (point.x, point.y);
@@ -1212,12 +1236,12 @@ public int getTopPixel () {
 	return destY - (int) rect.y;
 }
 
-String getTXNText (int iStartOffset, int iEndOffset) {
+char [] getTXNChars (int iStartOffset, int iEndOffset) {
 	int [] oDataHandle = new int [1];
 	OS.TXNGetData (txnObject, iStartOffset, iEndOffset, oDataHandle);
-	if (oDataHandle [0] == 0) return "";
+	if (oDataHandle [0] == 0) return new char [0];
 	int length = OS.GetHandleSize (oDataHandle [0]);
-	if (length == 0) return "";
+	if (length == 0) return new char [0];
 	int [] ptr = new int [1];
 	OS.HLock (oDataHandle [0]);
 	OS.memmove (ptr, oDataHandle [0], 4);
@@ -1225,7 +1249,11 @@ String getTXNText (int iStartOffset, int iEndOffset) {
 	OS.memmove (buffer, ptr [0], length);
 	OS.HUnlock (oDataHandle[0]);
 	OS.DisposeHandle (oDataHandle[0]);
-	return new String (buffer);
+	return buffer;
+}
+
+String getTXNText (int iStartOffset, int iEndOffset) {
+	return new String (getTXNChars (iStartOffset, iEndOffset));
 }
 
 void hookEvents () {
@@ -1303,7 +1331,7 @@ public void insert (String string) {
 		setTXNText (OS.kTXNUseCurrentSelection, OS.kTXNUseCurrentSelection, string);
 		OS.TXNShowSelection (txnObject, false);
 	}
-	if (string.length () != 0) sendEvent (SWT.Modify);
+	if (string.length () != 0) sendModifyEvent (true);
 }
 
 void insertEditText (String string) {
@@ -1334,6 +1362,98 @@ void insertEditText (String string) {
 		setEditText (newText);
 		setSelection (selection.x + string.length ());
 	}
+}
+
+int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
+	int code = OS.eventNotHandledErr;
+	if (txnObject != 0) {
+		int [] stringRef = new int [1];
+		OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
+		int length = 0;
+		if (stringRef [0] != 0) length = OS.CFStringGetLength (stringRef [0]);
+		char [] buffer = new char [length];
+		CFRange range = new CFRange ();
+		range.length = length;
+		OS.CFStringGetCharacters (stringRef [0], range, buffer);
+		String attributeName = new String(buffer);
+		if (attributeName.equals (OS.kAXRoleAttribute) || attributeName.equals (OS.kAXRoleDescriptionAttribute)) {
+			String roleText = (style & SWT.MULTI) != 0 ? OS.kAXTextAreaRole : OS.kAXTextFieldRole;
+			buffer = new char [roleText.length ()];
+			roleText.getChars (0, buffer.length, buffer, 0);
+			stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+			if (stringRef [0] != 0) {
+				if (attributeName.equals (OS.kAXRoleAttribute)) {
+					OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+				} else { // kAXRoleDescriptionAttribute
+					int stringRef2 = OS.HICopyAccessibilityRoleDescription (stringRef [0], 0);
+					OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, new int [] {stringRef2});
+					OS.CFRelease(stringRef2);
+				}
+				OS.CFRelease(stringRef [0]);
+				code = OS.noErr;
+			}
+		} else if (OS.VERSION < 0x1050 && attributeName.equals (OS.kAXFocusedAttribute)) {
+			OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeBoolean, 4, new boolean [] {hasFocus ()});
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXTitleAttribute)) {
+			/*
+			* Feature of the Macintosh.  For some reason, AXTextFields return their text contents
+			* when they are asked for their title.  Since they also return their text contents
+			* when they are asked for their value, this causes screen readers to speak the text
+			* twice.  The fix is to return nothing when asked for a title.
+			*/
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXValueAttribute)) {
+			buffer = getTXNChars (OS.kTXNStartOffset, OS.kTXNEndOffset);
+			stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+			if (stringRef [0] != 0) {
+				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+				OS.CFRelease(stringRef [0]);
+				code = OS.noErr;
+			}
+		} else if (attributeName.equals (OS.kAXNumberOfCharactersAttribute)) {
+			OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeSInt32, 4, new int [] {getCharCount()});
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXSelectedTextAttribute)) {
+			Point sel = getSelection ();
+			buffer = getTXNChars (sel.x, sel.y);
+			stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+			if (stringRef [0] != 0) {
+				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+				OS.CFRelease(stringRef [0]);
+				code = OS.noErr;
+			}
+		} else if (attributeName.equals (OS.kAXSelectedTextRangeAttribute)) {
+			Point sel = getSelection ();
+			range = new CFRange();
+			range.location = sel.x;
+			range.length = sel.y - sel.x;
+			int valueRef = OS.AXValueCreate(OS.kAXValueCFRangeType, range);
+			OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFTypeRef, 4, new int [] {valueRef});
+			OS.CFRelease(valueRef);
+			code = OS.noErr;
+		} else if (attributeName.equals (OS.kAXStringForRangeParameterizedAttribute)) {
+			int valueRef [] = new int [1];
+			int status = OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeParameter, OS.typeCFTypeRef, null, 4, null, valueRef);
+			if (status == OS.noErr) {
+				range = new CFRange();
+				boolean ok = OS.AXValueGetValue(valueRef[0], OS.kAXValueCFRangeType, range);
+				if (ok) {
+					buffer = getTXNChars (range.location, range.location + range.length);
+					stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+					if (stringRef [0] != 0) {
+						OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
+						OS.CFRelease(stringRef [0]);
+						code = OS.noErr;
+					}
+				}
+			}
+		}
+	}
+	if (accessible != null) {
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
+	}
+	return code;
 }
 
 int kEventMouseDown (int nextHandler, int theEvent, int userData) {
@@ -1401,6 +1521,17 @@ int kEventUnicodeKeyPressed (int nextHandler, int theEvent, int userData) {
 	return result;
 }
 
+int kEventTextInputUpdateActiveInputArea (int nextHandler, int theEvent, int userData) {
+	int [] length = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamTextInputSendText, OS.typeUnicodeText, null, 0, length, (char [])null);
+	int [] fixed_length = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamTextInputSendFixLen, OS.typeLongInteger, null, 4, null, fixed_length);
+	if (fixed_length [0] == -1 || fixed_length [0] == length [0]) {
+		sendModifyEvent (false);
+	}
+	return OS.eventNotHandledErr;
+}
+
 /**
  * Pastes text from clipboard.
  * <p>
@@ -1449,7 +1580,11 @@ public void paste () {
 			}
 		}
 	}
-	sendEvent (SWT.Modify);
+	sendModifyEvent (true);
+}
+
+boolean pollTrackEvent() {
+	return true;
 }
 
 void register () {
@@ -1611,8 +1746,29 @@ boolean sendKeyEvent (int type, Event event) {
 	* modify events are sent but it is safe to post the event here
 	* because this method is called from the event loop.
 	*/
-	postEvent (SWT.Modify);
+	sendModifyEvent (false);
 	return result;
+}
+
+void sendModifyEvent (boolean send) {
+	String string = OS.kAXSelectedTextChangedNotification;
+	char [] buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	int stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.AXNotificationHIObjectNotify(stringRef, handle, 0);
+	OS.CFRelease(stringRef);
+	string = OS.kAXValueChangedNotification;
+	buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.AXNotificationHIObjectNotify(stringRef, handle, 0);
+	OS.CFRelease(stringRef);
+	
+	if (send) {
+		sendEvent (SWT.Modify);
+	} else {
+		postEvent (SWT.Modify);
+	}
 }
 
 void setBackground (float [] color) {
@@ -2070,7 +2226,7 @@ public void setText (String string) {
 		OS.TXNSetSelection (txnObject, OS.kTXNStartOffset, OS.kTXNStartOffset);
 		OS.TXNShowSelection (txnObject, false);
 	}
-	sendEvent (SWT.Modify);
+	sendModifyEvent (true);
 }
 
 void setEditText (String string) {
@@ -2215,7 +2371,6 @@ public void setTopIndex (int index) {
 		OS.ReleaseEvent (event[0]);
 	}
 }
-
 /**
  * Shows the selection.
  * <p>

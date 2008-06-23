@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,6 +34,9 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Group extends Composite {
@@ -284,6 +287,38 @@ boolean mnemonicMatch (char key) {
 	char mnemonic = findMnemonic (getText ());
 	if (mnemonic == '\0') return false;
 	return Character.toUpperCase (key) == Character.toUpperCase (mnemonic);
+}
+
+void printWidget (int /*long*/ hwnd, GC gc) {
+	/*
+	* Bug in Windows.  For some reason, PrintWindow() fails
+	* when it is called on a push button.  The fix is to
+	* detect the failure and use WM_PRINT instead.  Note
+	* that WM_PRINT cannot be used all the time because it
+	* fails for browser controls when the browser has focus.
+	*/
+	int /*long*/ hDC = gc.handle;
+	if (!OS.PrintWindow (hwnd, hDC, 0)) {
+		/*
+		* Bug in Windows.  For some reason, WM_PRINT when called
+		* with PRF_CHILDREN will not draw the tool bar divider
+		* for tool bar children that do not have CCS_NODIVIDER.
+		* The fix is to draw the group box and iterate through
+		* the children, drawing each one.
+		*/
+		int flags = OS.PRF_CLIENT | OS.PRF_NONCLIENT | OS.PRF_ERASEBKGND;
+		OS.SendMessage (hwnd, OS.WM_PRINT, hDC, flags);
+		int nSavedDC = OS.SaveDC (hDC);
+		Control [] children = _getChildren ();
+		Rectangle rect = getBounds ();
+		OS.IntersectClipRect (hDC, 0, 0, rect.width, rect.height);
+		for (int i=children.length - 1; i>=0; --i) {
+			Point location = children [i].getLocation ();
+			OS.SetWindowOrgEx (hDC, -location.x, -location.y, null);
+			children [i].print (gc);
+		}
+		OS.RestoreDC (hDC, nSavedDC);
+	}
 }
 
 void releaseWidget () {

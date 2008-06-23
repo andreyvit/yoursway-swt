@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#toolbar">ToolBar, ToolItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ToolBar extends Composite {
 	int lastFocusId;
@@ -901,7 +905,18 @@ void setImageList (ImageList imageList) {
 public boolean setParent (Composite parent) {
 	checkWidget ();
 	if (!super.setParent (parent)) return false;
-	OS.SendMessage (handle, OS.TB_SETPARENT, parent.handle, 0);
+	int /*long*/ hwndParent = parent.handle;
+	OS.SendMessage (handle, OS.TB_SETPARENT, hwndParent, 0);
+	/*
+	* Bug in Windows.  When a tool bar is reparented, the tooltip
+	* control that is automatically created for the item is not
+	* reparented to the new shell.  The fix is to move the tooltip
+	* over using SetWindowLongPtr().  Note that for some reason,
+	* SetParent() does not work.
+	*/
+	int /*long*/ hwndShell = parent.getShell ().handle;
+	int /*long*/ hwndToolTip = OS.SendMessage (handle, OS.TB_GETTOOLTIPS, 0, 0);
+	OS.SetWindowLongPtr (hwndToolTip, OS.GWLP_HWNDPARENT, hwndShell);
 	return true;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,7 +27,6 @@ import org.eclipse.swt.graphics.*;
  * do not specify a shadow style.
  * </p>
  * <dl>
- * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>SEPARATOR, HORIZONTAL, VERTICAL</dd>
  * <dd>SHADOW_IN, SHADOW_OUT, SHADOW_NONE</dd>
@@ -43,6 +42,10 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#label">Label snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Label extends Control {
 	String text = "";
@@ -405,7 +408,7 @@ public void setText (String string) {
 	* contains an image, the image is misaligned.  The
 	* fix is to draw the background in WM_ERASEBKGND.
 	*/
-	if (OS.COMCTL32_MAJOR < 6 || !OS.IsAppThemed ()) {
+	if (OS.COMCTL32_MAJOR < 6) {
 		if (findImageControl () != null) OS.InvalidateRect (handle, null, true);
 	}
 }
@@ -451,7 +454,7 @@ LRESULT WM_ERASEBKGND (int /*long*/ wParam, int /*long*/ lParam) {
 	* contains an image, the image is misaligned.  The
 	* fix is to draw the background in WM_ERASEBKGND.
 	*/
-	if (OS.COMCTL32_MAJOR < 6 || !OS.IsAppThemed ()) {
+	if (OS.COMCTL32_MAJOR < 6) {
 		if (findImageControl () != null) {
 			drawBackground (wParam);
 			return LRESULT.ONE;
@@ -523,7 +526,7 @@ LRESULT wmColorChild (int /*long*/ wParam, int /*long*/ lParam) {
 	* fix is to draw the background in WM_ERASEBKGND.
 	*/
 	LRESULT result = super.wmColorChild (wParam, lParam);
-	if (OS.COMCTL32_MAJOR < 6 || !OS.IsAppThemed ()) {
+	if (OS.COMCTL32_MAJOR < 6) {
 		int bits = OS.GetWindowLong (handle, OS.GWL_STYLE);
 		if ((bits & OS.SS_OWNERDRAW) != OS.SS_OWNERDRAW) {
 			if (findImageControl () != null) {

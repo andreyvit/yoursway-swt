@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -33,6 +33,9 @@ import org.eclipse.swt.graphics.*;
  * </p>
  *
  * @see Composite
+ * @see <a href="http://www.eclipse.org/swt/snippets/#canvas">Canvas snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Canvas extends Composite {
@@ -130,7 +133,7 @@ public void drawBackground (GC gc, int x, int y, int width, int height) {
  * drawing in the window any other time.
  * </p>
  *
- * @return the caret
+ * @return the caret for the receiver, may be null
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -423,6 +426,7 @@ LRESULT WM_KILLFOCUS (int /*long*/ wParam, int /*long*/ lParam) {
 		LRESULT result = ime.WM_KILLFOCUS (wParam, lParam);
 		if (result != null) return result;
 	}
+	Caret caret = this.caret;
 	LRESULT result  = super.WM_KILLFOCUS (wParam, lParam);
 	if (caret != null) caret.killFocus ();
 	return result;
@@ -438,7 +442,7 @@ LRESULT WM_LBUTTONDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 
 LRESULT WM_SETFOCUS (int /*long*/ wParam, int /*long*/ lParam) {
 	LRESULT result  = super.WM_SETFOCUS (wParam, lParam);
-	if (caret != null) caret.setFocus ();
+	if (caret != null && caret.isFocusCaret ()) caret.setFocus ();
 	return result;
 }
 

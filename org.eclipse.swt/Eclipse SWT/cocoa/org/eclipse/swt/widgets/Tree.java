@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -53,12 +53,13 @@ import org.eclipse.swt.graphics.*;
  * </pre></code>
  * </p><p>
  * Note that although this class is a subclass of <code>Composite</code>,
- * it does not make sense to add <code>Control</code> children to it,
- * or set a layout on it.
+ * it does not normally make sense to add <code>Control</code> children to
+ * it, or set a layout on it, unless implementing something like a cell
+ * editor.
  * </p><p>
  * <dl>
  * <dt><b>Styles:</b></dt>
- * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL</dd>
+ * <dd>SINGLE, MULTI, CHECK, FULL_SELECTION, VIRTUAL, NO_SCROLL</dd>
  * <dt><b>Events:</b></dt>
  * <dd>Selection, DefaultSelection, Collapse, Expand, SetData, MeasureItem, EraseItem, PaintItem</dd>
  * </dl>
@@ -67,6 +68,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Tree extends Composite {
 	NSTableColumn firstColumn, checkColumn;
@@ -77,6 +82,7 @@ public class Tree extends Composite {
 	TreeColumn sortColumn;
 	int columnCount;
 	int sortDirection;
+	float levelIndent;
 	boolean ignoreExpand, ignoreSelect;
 
 /**
@@ -106,6 +112,9 @@ public class Tree extends Composite {
  * @see SWT#SINGLE
  * @see SWT#MULTI
  * @see SWT#CHECK
+ * @see SWT#FULL_SELECTION
+ * @see SWT#VIRTUAL
+ * @see SWT#NO_SCROLL
  * @see Widget#checkSubclass
  * @see Widget#getStyle
  */
@@ -369,7 +378,6 @@ void createHandle () {
 	scrollWidget.setHasVerticalScroller(true);
 	scrollWidget.setAutohidesScrollers(true);
 	scrollWidget.setBorderType(hasBorder() ? OS.NSBezelBorder : OS.NSNoBorder);
-	scrollWidget.setTag(jniRef);
 	
 	NSOutlineView widget = (NSOutlineView)new SWTOutlineView().alloc();
 	widget.initWithFrame(new NSRect());
@@ -380,7 +388,6 @@ void createHandle () {
 	widget.setDelegate(widget);
 	widget.setDoubleAction(OS.sel_sendDoubleSelection);
 	if (!hasBorder()) widget.setFocusRingType(OS.NSFocusRingTypeNone);
-	widget.setTag(jniRef);
 	
 	headerView = widget.headerView();
 	headerView.retain();
@@ -413,11 +420,10 @@ void createHandle () {
 	cell.setLeaf(true);
 	firstColumn.setDataCell(cell);
 	cell.release();
+	levelIndent = widget.indentationPerLevel();
 	
 	scrollView = scrollWidget;
 	view = widget;
-	scrollView.setDocumentView(widget);
-	parent.contentView().addSubview_(scrollView);
 }
 
 void createItem (TreeColumn column, int index) {
@@ -528,17 +534,19 @@ void createItem (TreeItem item, TreeItem parentItem, int index) {
 	System.arraycopy (items, index, items, index + 1, count++ - index);
 	items [index] = item;
 	item.items = new TreeItem[4];
-	item.createJNIRef();
 	SWTTreeItem handle = (SWTTreeItem)new SWTTreeItem().alloc().init();
-	handle.setTag(item.jniRef);
 	item.handle = handle;
+	item.createJNIRef();
+	item.register();
 	if (parentItem != null) {
 		parentItem.itemCount = count;
 	} else {
 		this.itemCount = count;
 	}
 	//TODO ?
+	ignoreExpand = true;
 	((NSTableView)view).reloadData();
+	ignoreExpand = false;
 }
 
 void createWidget () {
@@ -571,6 +579,23 @@ public void deselectAll () {
 	ignoreSelect = false;
 }
 
+/**
+ * Deselects an item in the receiver.  If the item was already
+ * deselected, it remains deselected.
+ *
+ * @param item the item to be deselected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void deselect (TreeItem item) {
 	checkWidget ();
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -946,6 +971,11 @@ public boolean getHeaderVisible () {
 	return ((NSTableView)view).headerView() != null;
 }
 
+int getInsetWidth () {
+	//TODO - wrong
+	return 20;
+}
+
 /**
  * Returns the item at the given, zero-relative index in the
  * receiver. Throws an exception if the index is out of range.
@@ -1183,13 +1213,13 @@ public TreeItem [] getSelection () {
 	int count = selection.count();
 	int [] indexBuffer = new int [count];
 	selection.getIndexes(indexBuffer, count, 0);
-	TreeItem [] result = new TreeItem  [count];
+	TreeItem [] result = new TreeItem [count];
 	for (int i=0; i<count; i++) {
-		id item = widget.itemAtRow(indexBuffer [i]);
-		int jniRef = OS.objc_msgSend(item.id, OS.sel_tag);
-		if (jniRef != -1 && jniRef != 0) {
+		id id = widget.itemAtRow(indexBuffer [i]);
+		Widget item = display.getWidget(id.id);
+		if (item != null && item instanceof TreeItem) {
 			//TODO virtual
-			result[i] = (TreeItem)OS.JNIGetObject(jniRef);
+			result[i] = (TreeItem)item;
 		}
 	}
 	return result;
@@ -1344,14 +1374,13 @@ public int indexOf (TreeItem item) {
 }
 
 int outlineView_child_ofItem(int outlineView, int index, int ref) {
-	TreeItem parent = null;
-	if (ref != 0) parent = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
+	TreeItem parent = (TreeItem)display.getWidget(ref);
 	TreeItem item = _getItem(parent, index);
 	return item.handle.id;
 }
 
 int outlineView_objectValueForTableColumn_byItem(int outlineView, int tableColumn, int ref) {
-	TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
+	TreeItem item = (TreeItem)display.getWidget(ref);
 	if (checkColumn != null && tableColumn == checkColumn.id) {
 		NSNumber value;
 		if (item.checked && item.grayed) {
@@ -1371,17 +1400,17 @@ int outlineView_objectValueForTableColumn_byItem(int outlineView, int tableColum
 
 boolean outlineView_isItemExpandable(int outlineView, int ref) {
 	if (ref == 0) return true;
-	return ((TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag))).itemCount != 0;
+	return ((TreeItem)display.getWidget(ref)).itemCount != 0;
 }
 
 int outlineView_numberOfChildrenOfItem(int outlineView, int ref) {
 	if (ref == 0) return itemCount;
-	return ((TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag))).itemCount;
+	return ((TreeItem)display.getWidget(ref)).itemCount;
 }
 
 void outlineView_willDisplayCell_forTableColumn_item(int outlineView, int cell, int tableColumn, int ref) {
 	if (checkColumn != null && tableColumn == checkColumn.id) return;
-	TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
+	TreeItem item = (TreeItem)display.getWidget(ref);
 	Image image = item.image;
 	for (int i=0; i<columnCount; i++) {
 		if (columns [i].nsColumn.id == tableColumn) {
@@ -1400,7 +1429,7 @@ void outlineViewSelectionDidChange(int notification) {
 		postEvent(SWT.Selection);
 	else {
 		id _id = widget.itemAtRow(row);
-		TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(_id.id, OS.sel_tag));
+		TreeItem item = (TreeItem)display.getWidget(_id.id);
 		Event event = new Event();
 		event.item = item;
 		event.index = row;
@@ -1409,29 +1438,37 @@ void outlineViewSelectionDidChange(int notification) {
 }
 
 boolean outlineView_shouldCollapseItem(int outlineView, int ref) {
+	TreeItem item = (TreeItem)display.getWidget(ref);
 	if (!ignoreExpand) {
-		TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
 		Event event = new Event();
 		event.item = item;
 		sendEvent(SWT.Collapse, event);
 		item.expanded = false;
+		ignoreExpand = true;
+		((NSOutlineView)view).collapseItem_(item.handle);
+		ignoreExpand = false;
+		return false;
 	}
-	return true;
+	return !item.expanded;
 }
 
 boolean outlineView_shouldExpandItem(int outlineView, int ref) {
+	final TreeItem item = (TreeItem)display.getWidget(ref);
 	if (!ignoreExpand) {
-		TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
 		Event event = new Event();
 		event.item = item;
 		sendEvent(SWT.Expand, event);
 		item.expanded = true;
+		ignoreExpand = true;
+		((NSOutlineView)view).expandItem_(item.handle);
+		ignoreExpand = false;
+		return false;
 	}
-	return true;
+	return item.expanded;
 }
 
 void outlineView_setObjectValue_forTableColumn_byItem(int outlineView, int object, int tableColumn, int ref) {
-	TreeItem item = (TreeItem)OS.JNIGetObject(OS.objc_msgSend(ref, OS.sel_tag));
+	TreeItem item = (TreeItem)display.getWidget(ref);
 	if (checkColumn != null && tableColumn == checkColumn.id)  {
 		item.checked = !item.checked;
 		Event event = new Event();
@@ -1591,6 +1628,23 @@ public void selectAll () {
 	ignoreSelect = false;
 }
 
+/**
+ * Selects an item in the receiver.  If the item was already
+ * selected, it remains selected.
+ *
+ * @param item the item to be selected
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the item is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the item has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void select (TreeItem item) {
 	checkWidget ();
 	if (item == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -1706,6 +1760,10 @@ public void setColumnOrder (int [] order) {
 			}
 		}
 	}
+}
+
+void setFont(NSFont font) {
+	view.setNeedsDisplay(true);
 }
 
 /**
@@ -2302,3 +2360,4 @@ public void showSelection () {
 }
 
 }
+

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,9 +34,12 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Group extends Composite {
-	SWTView contentView;
+	NSView contentView;
 	String text = "";
 	
 /**
@@ -105,19 +108,21 @@ NSView contentView () {
 	return contentView;
 }
 
+void deregister () {
+	super.deregister ();
+	display.removeWidget (contentView);
+}
+
 void createHandle () {
 	SWTBox widget = (SWTBox)new SWTBox().alloc();
 	widget.initWithFrame(new NSRect());
-	widget.setTitle(NSString.stringWith(""));
-	widget.setTag(jniRef);
+	widget.setTitlePosition(OS.NSNoTitle);
 	SWTView contentWidget = (SWTView)new SWTView().alloc();
 	contentWidget.initWithFrame(new NSRect());
-	contentWidget.setTag(jniRef);
 //	contentWidget.setDrawsBackground(false);
 	widget.setContentView(contentWidget);
 	contentView = contentWidget;
-	view = widget;	
-	parent.contentView().addSubview_(widget);
+	view = widget;
 }
 
 public Rectangle getClientArea () {
@@ -147,13 +152,19 @@ public String getText () {
 	return text;
 }
 
+void register () {
+	super.register ();
+	display.addWidget (contentView, this);
+}
+
 void releaseHandle () {
 	super.releaseHandle ();
-	if (contentView != null) {
-		contentView.setTag(-1);
-		contentView.release();
-	}
+	if (contentView != null) contentView.release();
 	contentView = null;
+}
+
+void setFont(NSFont font) {
+	((NSBox) view).setTitleFont(font);
 }
 
 /**
@@ -187,7 +198,9 @@ public void setText (String string) {
 	char [] buffer = new char [text.length ()];
 	text.getChars (0, buffer.length, buffer, 0);
 	int length = fixMnemonic (buffer);
-	((NSBox)view).setTitle(NSString.stringWithCharacters(buffer, length));
+	NSBox box = (NSBox)view;
+	box.setTitlePosition(length == 0 ? OS.NSNoTitle : OS.NSAtTop);
+	box.setTitle(NSString.stringWithCharacters(buffer, length));
 }
 
 }

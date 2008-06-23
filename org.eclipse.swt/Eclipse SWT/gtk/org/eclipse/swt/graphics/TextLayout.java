@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,7 +28,11 @@ import org.eclipse.swt.*;
  * when those instances are no longer required.
  * </p>
  * 
- *  @since 3.0
+ * @see <a href="http://www.eclipse.org/swt/snippets/#textlayout">TextLayout, TextStyle snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample, StyledText tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * 
+ * @since 3.0
  */
 public final class TextLayout extends Resource {
 	
@@ -67,6 +71,7 @@ public final class TextLayout extends Resource {
  */
 public TextLayout (Device device) {
 	super(device);
+	device = this.device;
 	context = OS.gdk_pango_context_get();
 	if (context == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	OS.pango_context_set_language(context, OS.gtk_get_default_language());
@@ -76,7 +81,7 @@ public TextLayout (Device device) {
 	if (layout == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	OS.pango_layout_set_font_description(layout, device.systemFont.handle);
 	OS.pango_layout_set_wrap(layout, OS.PANGO_WRAP_WORD_CHAR);
-	OS.pango_layout_set_tabs(layout, this.device.emptyTab);
+	OS.pango_layout_set_tabs(layout, device.emptyTab);
 	if (OS.GTK_VERSION >= OS.VERSION(2, 4, 0)) {
 		OS.pango_layout_set_auto_dir(layout, false);
 	}
@@ -160,6 +165,7 @@ void computeRuns () {
 		}
 	}
 	int strlen = OS.strlen(ptr);
+	Font defaultFont = font != null ? font : device.systemFont;
 	for (int i = 0; i < styles.length - 1; i++) {
 		StyleItem styleItem = styles[i];
 		TextStyle style = styleItem.style; 
@@ -171,7 +177,7 @@ void computeRuns () {
 		byteStart = Math.min(byteStart, strlen);
 		byteEnd = Math.min(byteEnd, strlen);
 		Font font = style.font;
-		if (font != null && !font.isDisposed()) {
+		if (font != null && !font.isDisposed() && !defaultFont.equals(font)) {
 			int /*long*/ attr = OS.pango_attr_font_desc_new (font.handle);
 			OS.memmove (attribute, attr, PangoAttribute.sizeof);
 			attribute.start_index = byteStart;
@@ -856,13 +862,18 @@ public int getAscent () {
 }
 
 /**
- * Returns the bounds of the receiver.
+ * Returns the bounds of the receiver. The width returned is either the
+ * width of the longest line or the width set using {@link TextLayout#setWidth(int)}.
+ * To obtain the text bounds of a line use {@link TextLayout#getLineBounds(int)}.
  * 
  * @return the bounds of the receiver
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * 
+ * @see #setWidth(int)
+ * @see #getLineBounds(int)
  */
 public Rectangle getBounds() {
 	checkLayout();
@@ -1763,6 +1774,7 @@ public void setFont (Font font) {
 	if (font != null && font.isDisposed()) SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	Font oldFont = this.font;
 	if (oldFont == font) return;
+	freeRuns();
 	this.font = font;
 	if (oldFont != null && oldFont.equals(font)) return;
 	OS.pango_layout_set_font_description(layout, font != null ? font.handle : device.systemFont.handle);

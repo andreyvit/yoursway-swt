@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -34,6 +34,10 @@ import org.eclipse.swt.accessibility.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#control">Control snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public abstract class Control extends Widget implements Drawable {
@@ -1146,7 +1150,9 @@ String getClipboardText () {
  * When the mouse pointer passes over a control its appearance
  * is changed to match the control's cursor.
  * </p>
- * </ul>
+ *
+ * @return the receiver's cursor or <code>null</code>
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1367,7 +1373,6 @@ Control [] getPath () {
  * </ul>
  *
  * @since 3.4
- *
  */
 public Region getRegion () {
 	checkWidget ();
@@ -1922,6 +1927,7 @@ public void pack (boolean changed) {
  * Prints the receiver and all children.
  * 
  * @param gc the gc where the drawing occurs
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
@@ -1944,7 +1950,7 @@ public boolean print (GC gc) {
 		if ((bits & OS.WS_VISIBLE) == 0) {
 			OS.DefWindowProc (topHandle, OS.WM_SETREDRAW, 1, 0);
 		}
-		printWidget (topHandle, gc.handle);
+		printWidget (topHandle, gc);
 		if ((bits & OS.WS_VISIBLE) == 0) {
 			OS.DefWindowProc (topHandle, OS.WM_SETREDRAW, 0, 0);
 		}
@@ -1953,8 +1959,8 @@ public boolean print (GC gc) {
 	return false;
 }
 
-void printWidget (int /*long*/ hwnd, int /*long*/ hDC) {
-	OS.PrintWindow (hwnd, hDC, 0);
+void printWidget (int /*long*/ hwnd, GC gc) {
+	OS.PrintWindow (hwnd, gc.handle, 0);
 }
 
 /**
@@ -2967,7 +2973,7 @@ public void setMenu (Menu menu) {
 	this.menu = menu;
 }
 
-boolean setRadioFocus () {
+boolean setRadioFocus (boolean tabbing) {
 	return false;
 }
 
@@ -3057,7 +3063,6 @@ public void setRedraw (boolean redraw) {
  * </ul>
  *
  * @since 3.4
- *
  */
 public void setRegion (Region region) {
 	checkWidget ();

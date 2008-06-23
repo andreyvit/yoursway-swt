@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -72,10 +72,12 @@ typedef enum {
 	class_1addIvar_FUNC,
 	class_1addMethod_FUNC,
 	drawRect_1CALLBACK_FUNC,
+	hitTest_1CALLBACK_FUNC,
 	memmove__ILorg_eclipse_swt_internal_cocoa_NSRect_2I_FUNC,
 	memmove__Lorg_eclipse_swt_internal_cocoa_NSPoint_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_cocoa_NSRange_2II_FUNC,
 	memmove__Lorg_eclipse_swt_internal_cocoa_NSRect_2II_FUNC,
+	memmove__Lorg_eclipse_swt_internal_cocoa_NSSize_2II_FUNC,
 	objc_1allocateClassPair_FUNC,
 	objc_1getClass_FUNC,
 	objc_1lookUpClass_FUNC,
@@ -254,7 +256,10 @@ typedef enum {
 	objc_1msgSend__II_3III_FUNC,
 	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2I_FUNC,
 	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2II_FUNC,
+	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2IIIII_FUNC,
+	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSPoint_2_FUNC,
 	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSRect_2_FUNC,
+	objc_1msgSendSuper__Lorg_eclipse_swt_internal_cocoa_objc_1super_2ILorg_eclipse_swt_internal_cocoa_NSSize_2_FUNC,
 	objc_1msgSend_1fpret__II_FUNC,
 	objc_1msgSend_1fpret__IID_FUNC,
 	objc_1msgSend_1fpret__IIF_FUNC,
@@ -345,4 +350,7 @@ typedef enum {
 	object_1getInstanceVariable_FUNC,
 	object_1setInstanceVariable_FUNC,
 	sel_1registerName_FUNC,
+	setFrameOrigin_1CALLBACK_FUNC,
+	setFrameSize_1CALLBACK_FUNC,
+	setFrame_1CALLBACK_FUNC,
 } OS_FUNCS;

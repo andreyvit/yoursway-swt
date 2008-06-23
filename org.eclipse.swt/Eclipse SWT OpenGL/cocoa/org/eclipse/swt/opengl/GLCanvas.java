@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -12,13 +12,16 @@ package org.eclipse.swt.opengl;
 
 import org.eclipse.swt.*;
 import org.eclipse.swt.widgets.*;
-import org.eclipse.swt.graphics.*;
 import org.eclipse.swt.internal.cocoa.*;
 import org.eclipse.swt.opengl.GLData;
 
 /**
  * GLCanvas is a widget capable of displaying OpenGL content.
  * 
+ * @see GLData
+ * @see <a href="http://www.eclipse.org/swt/snippets/#opengl">OpenGL snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ *
  * @since 3.2
  */
 
@@ -110,18 +113,22 @@ public GLCanvas (Composite parent, int style, GLData data) {
 		dispose ();
 		SWT.error (SWT.ERROR_UNSUPPORTED_DEPTH);
 	}
-	glView.initWithFrame(parent.view.frame(), pixelFormat);
+	glView.initWithFrame(parent.view.bounds(), pixelFormat);
 	glView.setAutoresizingMask(OS.NSViewWidthSizable | OS.NSViewHeightSizable);
+	parent.view.addSubview_(glView);
 
 	Listener listener = new Listener () {
 		public void handleEvent (Event event) {
 			switch (event.type) {
-			case SWT.Dispose:
-				if (glView != null) glView.release();
-				glView = null;
-				if (pixelFormat != null) pixelFormat.release();
-				pixelFormat = null;
-				break;
+				case SWT.Dispose:
+					if (glView != null) {
+						glView.clearGLContext();
+						glView.release();
+					}
+					glView = null;
+					if (pixelFormat != null) pixelFormat.release();
+					pixelFormat = null;
+					break;
 			}
 		}
 	};

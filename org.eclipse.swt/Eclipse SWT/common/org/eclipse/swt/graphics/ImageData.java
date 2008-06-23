@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,6 +29,9 @@ import org.eclipse.swt.internal.CloneableCompatibility;
  *
  * @see Image
  * @see ImageLoader
+ * @see <a href="http://www.eclipse.org/swt/snippets/#image">ImageData snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ImageAnalyzer</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public final class ImageData implements CloneableCompatibility {
@@ -581,6 +584,8 @@ public Object clone() {
 /**
  * Returns the alpha value at offset <code>x</code> in
  * scanline <code>y</code> in the receiver's alpha data.
+ * The alpha value is between 0 (transparent) and
+ * 255 (opaque).
  *
  * @param x the x coordinate of the pixel to get the alpha value of
  * @param y the y coordinate of the pixel to get the alpha value of
@@ -600,7 +605,9 @@ public int getAlpha(int x, int y) {
 /**
  * Returns <code>getWidth</code> alpha values starting at offset
  * <code>x</code> in scanline <code>y</code> in the receiver's alpha
- * data starting at <code>startIndex</code>.
+ * data starting at <code>startIndex</code>. The alpha values
+ * are unsigned, between <code>(byte)0</code> (transparent) and
+ * <code>(byte)255</code> (opaque).
  *
  * @param x the x position of the pixel to begin getting alpha values
  * @param y the y position of the pixel to begin getting alpha values
@@ -1151,6 +1158,8 @@ public ImageData scaledTo(int width, int height) {
 /**
  * Sets the alpha value at offset <code>x</code> in
  * scanline <code>y</code> in the receiver's alpha data.
+ * The alpha value must be between 0 (transparent)
+ * and 255 (opaque).
  *
  * @param x the x coordinate of the alpha value to set
  * @param y the y coordinate of the alpha value to set
@@ -1172,7 +1181,8 @@ public void setAlpha(int x, int y, int alpha) {
  * Sets the alpha values starting at offset <code>x</code> in
  * scanline <code>y</code> in the receiver's alpha data to the
  * values from the array <code>alphas</code> starting at
- * <code>startIndex</code>.
+ * <code>startIndex</code>. The alpha values must be between
+ * <code>(byte)0</code> (transparent) and <code>(byte)255</code> (opaque)
  *
  * @param x the x coordinate of the pixel to being setting the alpha values
  * @param y the y coordinate of the pixel to being setting the alpha values

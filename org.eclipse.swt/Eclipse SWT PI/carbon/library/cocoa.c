@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -340,6 +340,22 @@ JNIEXPORT jint JNICALL Cocoa_NATIVE(objc_1msgSend__IILorg_eclipse_swt_internal_c
 fail:
 	if (arg2 && lparg2) setNSRectFields(env, arg2, lparg2);
 	Cocoa_NATIVE_EXIT(env, that, objc_1msgSend__IILorg_eclipse_swt_internal_cocoa_NSRect_2I_FUNC);
+	return rc;
+}
+#endif
+
+#ifndef NO_objc_1msgSend__IILorg_eclipse_swt_internal_cocoa_NSRect_2II
+JNIEXPORT jint JNICALL Cocoa_NATIVE(objc_1msgSend__IILorg_eclipse_swt_internal_cocoa_NSRect_2II)
+	(JNIEnv *env, jclass that, jint arg0, jint arg1, jobject arg2, jint arg3, jint arg4)
+{
+	NSRect _arg2, *lparg2=NULL;
+	jint rc = 0;
+	Cocoa_NATIVE_ENTER(env, that, objc_1msgSend__IILorg_eclipse_swt_internal_cocoa_NSRect_2II_FUNC);
+	if (arg2) if ((lparg2 = getNSRectFields(env, arg2, &_arg2)) == NULL) goto fail;
+	rc = (jint)objc_msgSend((id)arg0, (SEL)arg1, *lparg2, arg3, arg4);
+fail:
+	if (arg2 && lparg2) setNSRectFields(env, arg2, lparg2);
+	Cocoa_NATIVE_EXIT(env, that, objc_1msgSend__IILorg_eclipse_swt_internal_cocoa_NSRect_2II_FUNC);
 	return rc;
 }
 #endif

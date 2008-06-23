@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2008 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -18,8 +18,8 @@
 
 #ifdef NATIVE_STATS
 
-int OS_nativeFunctionCount = 1264;
-int OS_nativeFunctionCallCount[1264];
+int OS_nativeFunctionCount = 1265;
+int OS_nativeFunctionCallCount[1265];
 char * OS_nativeFunctionNames[] = {
 	"Call",
 	"GDK_1EVENT_1TYPE",
@@ -1205,6 +1205,7 @@ char * OS_nativeFunctionNames[] = {
 	"_1pango_1layout_1iter_1next_1line",
 	"_1pango_1layout_1iter_1next_1run",
 	"_1pango_1layout_1line_1get_1extents",
+	"_1pango_1layout_1line_1get_1resolved_1dir",
 	"_1pango_1layout_1line_1x_1to_1index",
 	"_1pango_1layout_1new",
 	"_1pango_1layout_1set_1alignment",

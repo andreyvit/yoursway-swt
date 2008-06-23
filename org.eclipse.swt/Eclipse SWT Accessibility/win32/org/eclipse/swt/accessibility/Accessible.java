@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -36,6 +36,8 @@ import org.eclipse.swt.internal.ole.win32.*;
  * @see AccessibleEvent
  * @see AccessibleControlListener
  * @see AccessibleControlEvent
+ * @see <a href="http://www.eclipse.org/swt/snippets/#accessibility">Accessibility snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 2.0
  */
@@ -94,6 +96,10 @@ public class Accessible {
 			public int /*long*/ method27(int /*long*/[] args) {return put_accValue(args[0], args[1]);}
 		};
 
+		/* If the callback takes a struct parameter (for example, a variant),
+		 * then create a custom callback that dereferences the struct and
+		 * passes a pointer to the original callback.
+		 */
 		int /*long*/ ppVtable = objIAccessible.ppVtable;
 		int /*long*/[] pVtable = new int /*long*/[1];
 		COM.MoveMemory(pVtable, ppVtable, OS.PTR_SIZEOF);

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -31,6 +31,10 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#progressbar">ProgressBar snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ProgressBar extends Control {
 	static final int DELAY = 100;
@@ -187,8 +191,12 @@ public int getSelection () {
 }
 
 /**
- * Returns the state of the receiver. The value will be one of
- * <code>NORMAL</code>, <code>ERROR</code> or <code>PAUSED</code>.
+ * Returns the state of the receiver. The value will be one of:
+ * <ul>
+ * 	<li>{@link SWT#NORMAL}</li>
+ * 	<li>{@link SWT#ERROR}</li>
+ * 	<li>{@link SWT#PAUSED}</li>
+ * </ul>
  *
  * @return the state 
  *
@@ -324,8 +332,12 @@ public void setSelection (int value) {
 }
 
 /**
- * Sets the state of the receiver. The state is be one of
- * <code>NORMAL</code>, <code>ERROR</code> or <code>PAUSED</code>.
+ * Sets the state of the receiver. The state must be one of these values:
+ * <ul>
+ * 	<li>{@link SWT#NORMAL}</li>
+ * 	<li>{@link SWT#ERROR}</li>
+ * 	<li>{@link SWT#PAUSED}</li>
+ * </ul>
  *
  * @param state the new state
  *

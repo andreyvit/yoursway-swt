@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -44,6 +44,10 @@ import org.eclipse.swt.accessibility.Accessible;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#control">Control snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Control extends Widget implements Drawable {
 	/**
@@ -403,6 +407,9 @@ public void addMouseWheelListener (MouseWheelListener listener) {
 	addListener (SWT.MouseWheel, typedListener);
 }
 
+void addRelation (Control control) {
+}
+
 /**
  * Adds the listener to the collection of listeners who will
  * be notified when the receiver needs to be painted, by sending it
@@ -634,6 +641,7 @@ void createWidget () {
 	checkBuffered ();
 	setDefaultFont ();
 	setZOrder ();
+	setRelations ();
 }
 
 Color defaultBackground () {
@@ -1131,7 +1139,9 @@ int getDrawCount (int control) {
  * When the mouse pointer passes over a control its appearance
  * is changed to match the control's cursor.
  * </p>
- * </ul>
+ *
+ * @return the receiver's cursor or <code>null</code>
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -1333,6 +1343,19 @@ Control [] getPath () {
 	return result;
 }
 
+/** 
+ * Returns the region that defines the shape of the control,
+ * or null if the control has the default shape.
+ *
+ * @return the region that defines the shape of the shell (or null)
+ *	
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public Region getRegion () {
 	checkWidget ();
 	return region;
@@ -1700,6 +1723,14 @@ void invalWindowRgn (int window, int rgn) {
 	parent.invalWindowRgn (window, rgn);
 }
 
+/*
+ * Answers a boolean indicating whether a Label that precedes the receiver in
+ * a layout should be read by screen readers as the recevier's label.
+ */
+boolean isDescribedByLabel () {
+	return true;
+}
+
 /**
  * Returns <code>true</code> if the receiver is enabled and all
  * ancestors up to and including the receiver's nearest ancestor
@@ -1876,7 +1907,6 @@ int kEventAccessibleGetAllAttributeNames (int nextHandler, int theEvent, int use
 	String [] attributes = getAxAttributes ();
 	if (attributes != null) {
 		OS.CallNextEventHandler (nextHandler, theEvent);
-		nextHandler = 0;
 		int [] arrayRef = new int [1];
 		OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeNames, OS.typeCFMutableArrayRef, null, 4, null, arrayRef);
 		int attributesArrayRef = arrayRef [0];
@@ -1904,14 +1934,14 @@ int kEventAccessibleGetAllAttributeNames (int nextHandler, int theEvent, int use
 		code = OS.noErr;
 	}
 	if (accessible != null) {
-		code = accessible.internal_kEventAccessibleGetAllAttributeNames (nextHandler, theEvent, userData);
+		code = accessible.internal_kEventAccessibleGetAllAttributeNames (nextHandler, theEvent, code);
 	}
 	return code;
 }
 
 int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
 	if (accessible != null) {
-		return accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, userData);
+		return accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, OS.eventNotHandledErr);
 	}
 	return OS.eventNotHandledErr;
 }
@@ -1965,7 +1995,7 @@ int kEventControlGetPartRegion (int nextHandler, int theEvent, int userData) {
 	if (region != null && this != getShell ()) {
 		short [] part = new short [1];
 		OS.GetEventParameter (theEvent, OS.kEventParamControlPart, OS.typeControlPartCode , null, 2, null, part);
-		if (part [0] == OS.kControlStructureMetaPart) {
+		if (part [0] == OS.kControlStructureMetaPart || part [0] == OS.kControlClickableMetaPart) {
 			int [] rgn = new int [1];
 			OS.GetEventParameter (theEvent, OS.kEventParamControlRegion, OS.typeQDRgnHandle , null, 4, null, rgn);
 			OS.CopyRgn (region.handle, rgn[0]);
@@ -1980,6 +2010,15 @@ int kEventControlGetPartRegion (int nextHandler, int theEvent, int userData) {
 int kEventControlHitTest (int nextHandler, int theEvent, int userData) {
 	int result = super.kEventControlHitTest (nextHandler, theEvent, userData);
 	if (result == OS.noErr) return result;
+	if (region != null && this != getShell ()) {
+		result = OS.CallNextEventHandler (nextHandler, theEvent);
+		CGPoint pt = new CGPoint ();
+		OS.GetEventParameter (theEvent, OS.kEventParamMouseLocation, OS.typeHIPoint, null, CGPoint.sizeof, null, pt);
+		if (!region.contains ((int) pt.x, (int) pt.y)) {
+			OS.SetEventParameter (theEvent, OS.kEventParamControlPart, OS.typeControlPartCode, 2, new short []{0});
+			return result;
+		}
+	}
 	if ((state & GRAB) != 0) {
 		CGRect rect = new CGRect ();
 		OS.HIViewGetBounds (handle, rect);
@@ -1989,15 +2028,6 @@ int kEventControlHitTest (int nextHandler, int theEvent, int userData) {
 			OS.SetEventParameter (theEvent, OS.kEventParamControlPart, OS.typeControlPartCode, 2, new short[]{1});
 		}
 		return OS.noErr;
-	}
-	if (region != null && this != getShell ()) {
-		int code = OS.CallNextEventHandler (nextHandler, theEvent);
-		CGPoint pt = new CGPoint ();
-		OS.GetEventParameter (theEvent, OS.kEventParamMouseLocation, OS.typeHIPoint, null, CGPoint.sizeof, null, pt);
-		if (!region.contains ((int) pt.x, (int) pt.y)) {
-			OS.SetEventParameter (theEvent, OS.kEventParamControlPart, OS.typeControlPartCode, 2, new short [1]);
-		}
-		return code;
 	}
 	return result;
 }
@@ -2054,8 +2084,21 @@ int kEventControlTrack (int nextHandler, int theEvent, int userData) {
 	if (isDisposed ()) return OS.noErr;
 	display.lastState = OS.GetCurrentEventButtonState ();
 	display.lastModifiers = OS.GetCurrentEventKeyModifiers ();
-	display.grabControl = this;
+	display.grabControl = this; 
+	int timer = 0;
+	if (pollTrackEvent ()) {
+		if (display.pollingTimer == 0) {
+			int [] id = new int [1];
+			int eventLoop = OS.GetCurrentEventLoop ();
+			OS.InstallEventLoopTimer (eventLoop, Display.POLLING_TIMEOUT / 1000.0, Display.POLLING_TIMEOUT / 1000.0, display.pollingProc, 0, id);
+			display.pollingTimer = timer = id [0];
+		}
+	}
 	int result = super.kEventControlTrack (nextHandler, theEvent, userData);
+	if (timer != 0) {
+		OS.RemoveEventLoopTimer (timer);
+		display.pollingTimer = 0;
+	}
 	display.grabControl = null;
 	if (isDisposed ()) return OS.noErr;
 	sendTrackEvents ();
@@ -2152,7 +2195,7 @@ int kEventMouseWheelMoved (int nextHandler, int theEvent, int userData) {
 		OS.SetEventParameter (event [0], OS.kEventParamEventRef, OS.typeEventRef, 4, new int[]{theEvent});
 		OS.SendEventToEventTarget (event [0], OS.GetApplicationEventTarget ());
 		int [] clickResult = new int [1];
-		OS.GetEventParameter (event [0], OS.kEventParamModalClickResult, OS.typeModalClickResult, null, modifiers.length * 4, null, clickResult);
+		OS.GetEventParameter (event [0], OS.kEventParamModalClickResult, OS.typeModalClickResult, null, 4, null, clickResult);
 		OS.ReleaseEvent (event [0]);
 		if ((clickResult [0] & OS.kHIModalClickIsModal) != 0) {
 			if ((clickResult [0] & OS.kHIModalClickAllowEvent) == 0) {
@@ -2217,24 +2260,27 @@ int kEventTextInputUnicodeForKeyEvent (int nextHandler, int theEvent, int userDa
 	* send the event to the original focus widget and stop
 	* the chain of handlers.
 	*/
-	if (!isDisposed () && !hasFocus ()) {
+	if (!isDisposed ()) {
 		Control focusControl = display.getFocusControl ();
-		int focusHandle = focusHandle ();
-		int window = OS.GetControlOwner (focusHandle);
-		display.ignoreFocus = true;
-		OS.SetKeyboardFocus (window, focusHandle, (short) focusPart ());
-		display.ignoreFocus = false;
-		result = OS.CallNextEventHandler (nextHandler, theEvent);
-		if (focusControl != null) {
-			focusHandle = focusControl.focusHandle ();
-			window = OS.GetControlOwner (focusHandle);
+		if (focusControl != this) {
+			int window = OS.GetControlOwner (handle), newWindow = 0;
+			if (focusControl != null) {
+				newWindow = OS.GetControlOwner (focusControl.handle);
+			}
 			display.ignoreFocus = true;
-			OS.SetKeyboardFocus (window, focusHandle, (short) focusControl.focusPart ());
+			if (window != newWindow) OS.SetUserFocusWindow (window);
+			OS.SetKeyboardFocus (window, focusHandle (), (short) focusPart ());
 			display.ignoreFocus = false;
-		} else {
+			result = OS.CallNextEventHandler (nextHandler, theEvent);
 			display.ignoreFocus = true;
-			OS.ClearKeyboardFocus (window);
+			if (window != newWindow && newWindow != 0) OS.SetUserFocusWindow (newWindow);
+			if (window == newWindow && focusControl != null) {
+				OS.SetKeyboardFocus (window, focusControl.focusHandle (), (short) focusControl.focusPart ());
+			} else {
+				OS.ClearKeyboardFocus (window);
+			}
 			display.ignoreFocus = false;
+			return OS.noErr;
 		}
 	}
 	return result;
@@ -2356,6 +2402,23 @@ public void pack (boolean changed) {
 	setSize (computeSize (SWT.DEFAULT, SWT.DEFAULT, changed));
 }
 
+/**
+ * Prints the receiver and all children.
+ * 
+ * @param gc the gc where the drawing occurs
+ * @return <code>true</code> if the operation was successful and <code>false</code> otherwise
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the gc is null</li>
+ *    <li>ERROR_INVALID_ARGUMENT - if the gc has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public boolean print (GC gc) {
 	checkWidget ();
 	if (gc == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -2373,6 +2436,10 @@ public boolean print (GC gc) {
 		OS.CGImageRelease (outImage [0]);
 	}
 	return true;
+}
+
+boolean pollTrackEvent() {
+	return false;
 }
 
 /**
@@ -2443,6 +2510,27 @@ void register () {
 	super.register ();
 	display.addWidget (handle, this);
 }
+
+void release (boolean destroy) {
+	Control next = null, previous = null;
+	if (destroy && parent != null) {
+		Control[] children = parent._getChildren ();
+		int index = 0;
+		while (index < children.length) {
+			if (children [index] == this) break;
+			index++;
+		}
+		if (0 < index && (index + 1) < children.length) {
+			next = children [index + 1];
+			previous = children [index - 1];
+		}
+	}
+	super.release (destroy);
+	if (destroy) {
+		if (previous != null) previous.addRelation (next);
+	}
+}
+
 void releaseHandle () {
 	super.releaseHandle ();
 	handle = 0;
@@ -2746,6 +2834,19 @@ public void removePaintListener(PaintListener listener) {
 	if (listener == null) error (SWT.ERROR_NULL_ARGUMENT);
 	if (eventTable == null) return;
 	eventTable.unhook(SWT.Paint, listener);
+}
+
+/*
+ * Remove "Labeled by" relations from the receiver.
+ */
+void removeRelation () {
+	if (!isDescribedByLabel ()) return;		/* there will not be any */
+	String string = OS.kAXTitleUIElementAttribute;
+	char [] buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	int stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.HIObjectSetAuxiliaryAccessibilityAttribute(handle, 0, stringRef, 0);
+	OS.CFRelease(stringRef);
 }
 
 /**
@@ -3145,7 +3246,8 @@ public void setBounds (Rectangle rect) {
 /**
  * If the argument is <code>true</code>, causes the receiver to have
  * all mouse events delivered to it until the method is called with
- * <code>false</code> as the argument.
+ * <code>false</code> as the argument.  Note that on some platforms,
+ * a mouse button must currently be down for capture to be assigned.
  *
  * @param capture <code>true</code> to capture the mouse, and <code>false</code> to release it
  *
@@ -3584,15 +3686,49 @@ public void setRedraw (boolean redraw) {
 	}
 }
 
+/**
+ * Sets the shape of the control to the region specified
+ * by the argument.  When the argument is null, the
+ * default shape of the control is restored.
+ *
+ * @param region the region that defines the shape of the control (or null)
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the region has been disposed</li>
+ * </ul>  
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void setRegion (Region region) {
 	checkWidget ();
 	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
 	this.region = region;
+	OS.HIViewRegionChanged (handle, OS.kControlStructureMetaPart);
 	redrawWidget (handle, true);
 }
 
 boolean setRadioSelection (boolean value){
 	return false;
+}
+
+void setRelations () {
+	if (parent == null) return;
+	Control [] children = parent._getChildren ();
+	int count = children.length;
+	if (count > 1) {
+		/*
+		 * the receiver is the last item in the list, so its predecessor will
+		 * be the second-last item in the list
+		 */
+		Control child = children [count - 2];
+		if (child != this) {
+			child.addRelation (this);
+		}
+	}
 }
 
 /**
@@ -3746,9 +3882,68 @@ void setZOrder () {
 	OS.SetControlBounds (topHandle, rect);
 }
 
-void setZOrder (Control control, boolean above) {
-	int otherControl = control == null ? 0 : control.topHandle ();
-	setZOrder (topHandle (), otherControl, above);
+void setZOrder (Control sibling, boolean above) {
+	int siblingHandle = sibling == null ? 0 : sibling.topHandle ();
+	int index = 0, siblingIndex = 0, oldNextIndex = -1;
+	Control[] children = null;
+	/* determine the receiver's and sibling's indexes in the parent */
+	children = parent._getChildren ();
+	while (index < children.length) {
+		if (children [index] == this) break;
+		index++;
+	}
+	if (sibling != null) {
+		while (siblingIndex < children.length) {
+			if (children [siblingIndex] == sibling) break;
+			siblingIndex++;
+		}
+	}
+	/* remove "Labeled by" relationships that will no longer be valid */
+	removeRelation ();
+	if (index + 1 < children.length) {
+		oldNextIndex = index + 1;
+		children [oldNextIndex].removeRelation ();
+	}
+	if (sibling != null) {
+		if (above) {
+			sibling.removeRelation ();
+		} else {
+			if (siblingIndex + 1 < children.length) {
+				children [siblingIndex + 1].removeRelation ();
+			}
+		}
+	}
+	setZOrder (topHandle (), siblingHandle, above);
+	/* determine the receiver's new index in the parent */
+	if (sibling != null) {
+		if (above) {
+			index = siblingIndex - (index < siblingIndex ? 1 : 0);
+		} else {
+			index = siblingIndex + (siblingIndex < index ? 1 : 0);
+		}
+	} else {
+		if (above) {
+			index = 0;
+		} else {
+			index = children.length - 1;
+		}
+	}
+
+	/* add new "Labeled by" relations as needed */
+	children = parent._getChildren ();
+	if (0 < index) {
+		children [index - 1].addRelation (this);
+	}
+	if (index + 1 < children.length) {
+		addRelation (children [index + 1]);
+	}
+	if (oldNextIndex != -1) {
+		if (oldNextIndex <= index) oldNextIndex--;
+		/* the last two conditions below ensure that duplicate relations are not hooked */
+		if (0 < oldNextIndex && oldNextIndex != index && oldNextIndex != index + 1) {
+			children [oldNextIndex - 1].addRelation (children [oldNextIndex]);
+		}
+	}
 }
 
 void sort (int [] items) {

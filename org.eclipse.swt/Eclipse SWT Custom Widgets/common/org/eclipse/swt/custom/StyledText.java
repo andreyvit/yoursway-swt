@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -73,6 +73,10 @@ import org.eclipse.swt.widgets.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#styledtext">StyledText snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Examples: CustomControlExample, TextEditor</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class StyledText extends Canvas {
 	static final char TAB = '\t';
@@ -1350,6 +1354,7 @@ public void addLineStyleListener(LineStyleListener listener) {
 		renderer.clearLineStyle(0, content.getLineCount());
 	}
 	addListener(LineGetStyle, new StyledTextListener(listener));
+	setCaretLocation();
 }
 /**	 
  * Adds a modify listener. A Modify event is sent by the widget when the widget text 
@@ -1605,7 +1610,8 @@ static int checkStyle(int style) {
 		}
 	}
 	style |= SWT.NO_REDRAW_RESIZE | SWT.DOUBLE_BUFFERED | SWT.NO_BACKGROUND;
-	return style;
+	/* Clear SWT.CENTER to avoid the conflict with SWT.EMBEDDED */
+	return style & ~SWT.CENTER;
 }
 /**
  * Scrolls down the text to use new space made available by a resize or by 
@@ -3704,7 +3710,9 @@ StyledTextEvent getLineStyleData(int lineOffset, String line) {
  *  
  * @param lineIndex the line index, the max value is lineCount. If
  * lineIndex == lineCount it returns the bottom pixel of the last line.
- * It means this function can be used to retrieve the bottom pixel of any line. 
+ * It means this function can be used to retrieve the bottom pixel of any line.
+ * 
+ * @return the top pixel of a given line index
  * 
  * @since 3.2
  */
@@ -3732,6 +3740,10 @@ public int getLinePixel(int lineIndex) {
 /**
  * Returns the line index for a y, relative to the client area.
  * The line index returned is always in the range 0..lineCount - 1.
+ * 
+ * @param y the y-coordinate pixel
+ * 
+ * @return the line index for a given y-coordinate pixel
  *
  * @since 3.2
  */
@@ -5009,13 +5021,14 @@ void handleCompositionChanged(Event event) {
 	int length = text.length();
 	if (length == ime.getCommitCount()) {
 		content.replaceTextRange(start, end - start, "");
-		caretOffset = start;
+		caretOffset = ime.getCompositionOffset();
 		caretWidth = 0;
 		caretDirection = SWT.NULL;
 	} else {
 		content.replaceTextRange(start, end - start, text);
 		caretOffset = ime.getCaretOffset();
 		if (ime.getWideCaret()) {
+			start = ime.getCompositionOffset();
 			int lineIndex = getCaretLine();
 			int lineOffset = content.getOffsetAtLine(lineIndex);
 			TextLayout layout = renderer.getTextLayout(lineIndex);	
@@ -5398,7 +5411,6 @@ void handleTextChanged(TextChangedEvent event) {
 		int newLastLineBottom = getLinePixel(lastLine + 1);
 		if (lastLineBottom != newLastLineBottom) {
 			super.redraw();
-			if (wordWrap) setCaretLocation();
 		} else {
 			super.redraw(0, firstLineTop, clientAreaWidth, newLastLineBottom - firstLineTop, false);
 			redrawLinesBullet(renderer.redrawLines);
@@ -5942,6 +5954,9 @@ public void print() {
  * </p>
  * 
  * @param printer the printer to print to
+ *
+ * @return a <code>Runnable</code> for printing the receiver's text
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -5971,6 +5986,9 @@ public Runnable print(Printer printer) {
  * 
  * @param printer the printer to print to
  * @param options print options to use during printing
+ *
+ * @return a <code>Runnable</code> for printing the receiver's text
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6129,7 +6147,8 @@ public void redrawRange(int start, int length, boolean clearBackground) {
 /**
  * Removes the specified bidirectional segment listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6137,6 +6156,7 @@ public void redrawRange(int start, int length, boolean clearBackground) {
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT when listener is null</li>
  * </ul>
+ * 
  * @since 2.0
  */
 public void removeBidiSegmentListener(BidiSegmentListener listener) {
@@ -6147,7 +6167,8 @@ public void removeBidiSegmentListener(BidiSegmentListener listener) {
 /**
  * Removes the specified extended modify listener.
  *
- * @param extendedModifyListener the listener
+ * @param extendedModifyListener the listener which should no longer be notified
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6164,7 +6185,8 @@ public void removeExtendedModifyListener(ExtendedModifyListener extendedModifyLi
 /**
  * Removes the specified line background listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6181,7 +6203,8 @@ public void removeLineBackgroundListener(LineBackgroundListener listener) {
 /**
  * Removes the specified line style listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6194,11 +6217,13 @@ public void removeLineStyleListener(LineStyleListener listener) {
 	checkWidget();
 	if (listener == null) SWT.error(SWT.ERROR_NULL_ARGUMENT);
 	removeListener(LineGetStyle, listener);
+	setCaretLocation();
 }
 /**
  * Removes the specified modify listener.
  *
- * @param modifyListener the listener
+ * @param modifyListener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6215,7 +6240,8 @@ public void removeModifyListener(ModifyListener modifyListener) {
 /**
  * Removes the specified listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6255,7 +6281,8 @@ public void removeSelectionListener(SelectionListener listener) {
 /**
  * Removes the specified verify listener.
  *
- * @param verifyListener the listener
+ * @param verifyListener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6272,7 +6299,8 @@ public void removeVerifyListener(VerifyListener verifyListener) {
 /**
  * Removes the specified key verify listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6288,7 +6316,8 @@ public void removeVerifyKeyListener(VerifyKeyListener listener) {
 /**
  * Removes the specified word movement listener.
  *
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
+ * 
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -6986,9 +7015,6 @@ public void setFont(Font font) {
 	setCaretLocation();
 	super.redraw();
 }
-/**
- * @see org.eclipse.swt.widgets.Control#setForeground
- */
 public void setForeground(Color color) {
 	checkWidget();
 	foreground = color;
@@ -8281,6 +8307,7 @@ public void showSelection() {
 void updateSelection(int startOffset, int replacedLength, int newLength) {
 	if (selection.y <= startOffset) {
 		// selection ends before text change
+		if (wordWrap) setCaretLocation();
 		return;
 	}
 	if (selection.x < startOffset) {

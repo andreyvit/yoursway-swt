@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,6 +32,10 @@ import org.eclipse.swt.events.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#sash">Sash snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Sash extends Control {
 	Cursor sizeCursor;
@@ -116,8 +120,8 @@ static int checkStyle (int style) {
 	return checkBits (style, SWT.HORIZONTAL, SWT.VERTICAL, 0, 0, 0, 0);
 }
 
-boolean becomeFirstResponder () {
-	boolean result = super.becomeFirstResponder();
+boolean becomeFirstResponder (int id, int sel) {
+	boolean result = super.becomeFirstResponder(id, sel);
 	NSRect frame = view.frame();
 	lastX = (int)frame.x;
 	lastY = (int)frame.y;
@@ -140,9 +144,31 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 void createHandle () {
 	SWTView widget = (SWTView)new SWTView().alloc();
 	widget.initWithFrame (new NSRect());
-	widget.setTag(jniRef);
 	view = widget;
-	parent.contentView().addSubview_(view);
+}
+
+void drawRect (int id, NSRect rect) {
+	Control control = findBackgroundControl();
+	if (control == null) control = this;
+	Color background = control.background;
+	if (background != null && !background.isDisposed ()) {
+		float [] color = background.handle;
+		NSGraphicsContext context = NSGraphicsContext.currentContext();
+		context.saveGraphicsState();
+		NSColor.colorWithDeviceRed(color [0], color [1], color [2], color [3]).setFill();
+		NSBezierPath.fillRect(rect);
+		context.restoreGraphicsState();
+	}
+	super.drawRect (id, rect);
+}
+
+Cursor findCursor () {
+	Cursor cursor = super.findCursor ();
+	if (cursor == null)	{
+		int cursorType = (style & SWT.HORIZONTAL) != 0 ? SWT.CURSOR_SIZENS : SWT.CURSOR_SIZEWE;
+		cursor = display.getSystemCursor (cursorType);
+	}
+	return cursor;
 }
 
 boolean sendKeyEvent(NSEvent nsEvent, int type) {
@@ -204,8 +230,9 @@ boolean sendKeyEvent(NSEvent nsEvent, int type) {
 	return true;
 }
 
-void mouseDown(int theEvent) {
-	super.mouseDown(theEvent);
+void mouseDown(int id, int sel, int theEvent) {
+	//TODO use sendMouseEvent
+//	super.mouseDown(id, sel, theEvent);
 	NSEvent nsEvent = new NSEvent(theEvent);
 	if (nsEvent.clickCount() != 1) return;
 	NSPoint location = nsEvent.locationInWindow();
@@ -228,8 +255,9 @@ void mouseDown(int theEvent) {
 	}
 }
 
-void mouseDragged(int theEvent) {
-	super.mouseDragged(theEvent);
+void mouseDragged(int id, int sel, int theEvent) {
+	//TODO use sendMouseEvent
+//	super.mouseDragged(id, sel, theEvent);
 	if (!dragging) return;
 	NSEvent nsEvent = new NSEvent(theEvent);
 	NSPoint location = nsEvent.locationInWindow();
@@ -257,16 +285,9 @@ void mouseDragged(int theEvent) {
 	}
 }
 
-void resetCursorRects() {
-	NSRect rect = new NSRect();
-	rect.x = rect.y = 0;
-	rect.width = view.frame().width;
-	rect.height = view.frame().height;
-	view.addCursorRect(rect, sizeCursor.handle);
-}
-
-void mouseUp(int theEvent) {
-	super.mouseUp(theEvent);
+void mouseUp(int id, int sel, int theEvent) {
+	//TODO use sendMouseEvent
+//	super.mouseUp(id, sel, theEvent);
 	if (!dragging) return;
 	dragging = false;
 	NSRect frame = view.frame();

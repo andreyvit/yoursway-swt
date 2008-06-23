@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#datetime">DateTime snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  *
  * @since 3.3
  */
@@ -55,11 +59,72 @@ public class DateTime extends Composite {
 		icex.dwSize = INITCOMMONCONTROLSEX.sizeof;
 		icex.dwICC = OS.ICC_DATE_CLASSES;
 		OS.InitCommonControlsEx (icex);
+	}
+	static {
 		WNDCLASS lpWndClass = new WNDCLASS ();
 		OS.GetClassInfo (0, DateTimeClass, lpWndClass);
 		DateTimeProc = lpWndClass.lpfnWndProc;
+		/*
+		* Feature in Windows.  The date time window class
+		* does not include CS_DBLCLKS.  This means that these
+		* controls will not get double click messages such as
+		* WM_LBUTTONDBLCLK.  The fix is to register a new 
+		* window class with CS_DBLCLKS.
+		* 
+		* NOTE:  Screen readers look for the exact class name
+		* of the control in order to provide the correct kind
+		* of assistance.  Therefore, it is critical that the
+		* new window class have the same name.  It is possible
+		* to register a local window class with the same name
+		* as a global class.  Since bits that affect the class
+		* are being changed, it is possible that other native
+		* code, other than SWT, could create a control with
+		* this class name, and fail unexpectedly.
+		*/
+		int /*long*/ hInstance = OS.GetModuleHandle (null);
+		int /*long*/ hHeap = OS.GetProcessHeap ();
+		lpWndClass.hInstance = hInstance;
+		lpWndClass.style &= ~OS.CS_GLOBALCLASS;
+		lpWndClass.style |= OS.CS_DBLCLKS;
+		int byteCount = DateTimeClass.length () * TCHAR.sizeof;
+		int /*long*/ lpszClassName = OS.HeapAlloc (hHeap, OS.HEAP_ZERO_MEMORY, byteCount);
+		OS.MoveMemory (lpszClassName, DateTimeClass, byteCount);
+		lpWndClass.lpszClassName = lpszClassName;
+		OS.RegisterClass (lpWndClass);
+		OS.HeapFree (hHeap, 0, lpszClassName);
+	}
+	static {
+		WNDCLASS lpWndClass = new WNDCLASS ();
 		OS.GetClassInfo (0, CalendarClass, lpWndClass);
 		CalendarProc = lpWndClass.lpfnWndProc;
+		/*
+		* Feature in Windows.  The date time window class
+		* does not include CS_DBLCLKS.  This means that these
+		* controls will not get double click messages such as
+		* WM_LBUTTONDBLCLK.  The fix is to register a new 
+		* window class with CS_DBLCLKS.
+		* 
+		* NOTE:  Screen readers look for the exact class name
+		* of the control in order to provide the correct kind
+		* of assistance.  Therefore, it is critical that the
+		* new window class have the same name.  It is possible
+		* to register a local window class with the same name
+		* as a global class.  Since bits that affect the class
+		* are being changed, it is possible that other native
+		* code, other than SWT, could create a control with
+		* this class name, and fail unexpectedly.
+		*/
+		int /*long*/ hInstance = OS.GetModuleHandle (null);
+		int /*long*/ hHeap = OS.GetProcessHeap ();
+		lpWndClass.hInstance = hInstance;
+		lpWndClass.style &= ~OS.CS_GLOBALCLASS;
+		lpWndClass.style |= OS.CS_DBLCLKS;
+		int byteCount = CalendarClass.length () * TCHAR.sizeof;
+		int /*long*/ lpszClassName = OS.HeapAlloc (hHeap, OS.HEAP_ZERO_MEMORY, byteCount);
+		OS.MoveMemory (lpszClassName, CalendarClass, byteCount);
+		lpWndClass.lpszClassName = lpszClassName;
+		OS.RegisterClass (lpWndClass);
+		OS.HeapFree (hHeap, 0, lpszClassName);
 	}
 	static final int MARGIN = 4;
 	static final int MAX_DIGIT = 9;

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -69,6 +69,9 @@ import org.eclipse.swt.widgets.*;
 *		}
 *	});
 * </pre></code>
+*
+* @see <a href="http://www.eclipse.org/swt/snippets/#tableeditor">TableEditor snippets</a>
+* @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
 */
 public class TableEditor extends ControlEditor {
 	Table table;
@@ -218,6 +221,11 @@ public void setColumn(int column) {
 	tableColumn.addControlListener(columnListener);
 	resize();
 }
+/**
+* Specifies the <code>TableItem</code> that is to be edited.
+*
+* @param item the item to be edited
+*/
 public void setItem (TableItem item) {	
 	this.item = item;
 	resize();

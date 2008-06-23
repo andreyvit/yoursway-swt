@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -14,8 +14,8 @@
 
 #ifdef NATIVE_STATS
 
-int OS_nativeFunctionCount = 969;
-int OS_nativeFunctionCallCount[969];
+int OS_nativeFunctionCount = 973;
+int OS_nativeFunctionCallCount[973];
 char * OS_nativeFunctionNames[] = {
 	"AECoerceDesc",
 	"AECountItems",
@@ -130,6 +130,7 @@ char * OS_nativeFunctionNames[] = {
 	"CFURLCreateFromFSRef",
 	"CFURLCreateFromFileSystemRepresentation",
 	"CFURLCreateStringByAddingPercentEscapes",
+	"CFURLCreateStringByReplacingPercentEscapes",
 	"CFURLCreateWithBytes",
 	"CFURLCreateWithFileSystemPath",
 	"CFURLCreateWithString",
@@ -544,6 +545,7 @@ char * OS_nativeFunctionNames[] = {
 	"HIObjectCreate",
 	"HIObjectRegisterSubclass",
 	"HIObjectSetAccessibilityIgnored",
+	"HIObjectSetAuxiliaryAccessibilityAttribute",
 	"HIScrollViewCreate",
 	"HIScrollViewSetScrollBarAutoHide",
 	"HISearchFieldChangeAttributes",
@@ -607,6 +609,7 @@ char * OS_nativeFunctionNames[] = {
 	"HIViewGetViewForMouseEvent",
 	"HIViewIsDrawingEnabled",
 	"HIViewIsVisible",
+	"HIViewRegionChanged",
 	"HIViewRemoveFromSuperview",
 	"HIViewRender",
 	"HIViewScrollRect",
@@ -690,6 +693,7 @@ char * OS_nativeFunctionNames[] = {
 	"NavDialogRun",
 	"NavDialogSetFilterTypeIdentifiers",
 	"NavDialogSetSaveFileName",
+	"NavDisposeReply",
 	"NavGetDefaultDialogCreationOptions",
 	"NewControl",
 	"NewDrag",

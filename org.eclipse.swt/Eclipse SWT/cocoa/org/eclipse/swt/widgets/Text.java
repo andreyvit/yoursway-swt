@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -19,6 +19,13 @@ import org.eclipse.swt.graphics.*;
 /**
  * Instances of this class are selectable user interface
  * objects that allow the user to enter and modify text.
+ * Text controls can be either single or multi-line.
+ * When a text control is created with a border, the
+ * operating system includes a platform specific inset
+ * around the contents of the control.  When created
+ * without a border, an effort is made to remove the
+ * inset such that the preferred size of the control
+ * is the same size as the contents.
  * <p>
  * <dl>
  * <dt><b>Styles:</b></dt>
@@ -32,6 +39,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#text">Text snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Text extends Scrollable {
 	int textLimit = LIMIT, tabs = 8;
@@ -317,11 +328,9 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 public void copy () {
 	checkWidget ();
 	if ((style & SWT.SINGLE) != 0) {
-		if ((style & SWT.SEARCH) != 0) {
-			((NSSearchField)view).currentEditor().copy(null);
-		}
+		
 	} else {
-		((NSTextView)view).copy(null);
+		((NSTextView)view).copy();
 	}
 }
 
@@ -329,9 +338,9 @@ void createHandle () {
 	if ((style & SWT.SINGLE) != 0) {
 		NSTextField widget;
 		if ((style & SWT.PASSWORD) != 0) {
-			widget = (NSTextField)new NSSecureTextField().alloc();
+			widget = (NSTextField)new SWTSecureTextField().alloc();
 		} else if ((style & SWT.SEARCH) != 0) {
-			widget = (NSTextField)new SWTSearchField().alloc();						
+			widget = (NSTextField)new SWTSearchField().alloc();
 		} else {
 			widget = (NSTextField)new SWTTextField().alloc();
 		}
@@ -343,22 +352,16 @@ void createHandle () {
 		if ((style & SWT.CENTER) != 0) align = OS.NSCenterTextAlignment;
 		if ((style & SWT.RIGHT) != 0) align = OS.NSRightTextAlignment;
 		widget.setAlignment(align);
-		
-		if ((style & SWT.SEARCH) != 0) {
-			widget.setTarget(widget);
-			widget.setAction(OS.sel_performAction);
-		}
-		
-		widget.setTag(jniRef);
+//		widget.setTarget(widget);
+//		widget.setAction(OS.sel_sendSelection);
 		view = widget;
-		parent.contentView().addSubview_(widget);
 	} else {
 		SWTScrollView scrollWidget = (SWTScrollView)new SWTScrollView().alloc();
 		scrollWidget.initWithFrame(new NSRect());
 		scrollWidget.setHasVerticalScroller((style & SWT.VERTICAL) != 0);
 		scrollWidget.setHasHorizontalScroller((style & SWT.HORIZONTAL) != 0);
 		scrollWidget.setAutoresizesSubviews(true);
-		scrollWidget.setTag(jniRef);
+		if ((style & SWT.BORDER) != 0) scrollWidget.setBorderType(OS.NSBezelBorder);
 		
 		SWTTextView widget = (SWTTextView)new SWTTextView().alloc();
 		widget.initWithFrame(new NSRect());
@@ -385,13 +388,10 @@ void createHandle () {
 
 //		widget.setTarget(widget);
 //		widget.setAction(OS.sel_sendSelection);
-		widget.setTag(jniRef);
 		widget.setRichText(false);
 		
 		view = widget;
 		scrollView = scrollWidget;
-		scrollView.setDocumentView(widget);
-		parent.contentView().addSubview_(scrollView);
 	}
 }
 
@@ -417,9 +417,7 @@ public void cut () {
 	checkWidget();
 	if ((style & SWT.READ_ONLY) != 0) return;
 	if ((style & SWT.SINGLE) != 0) {
-		if ((style & SWT.SEARCH) != 0) {
-			((NSSearchField)view).currentEditor().cut(null);
-		}
+		
 	} else {
 		((NSTextView)view).cut(null);
 	}
@@ -730,7 +728,7 @@ int getPosition (int x, int y) {
 	return 0;
 }
 
-public int getPosition (Point point) {
+/*public*/ int getPosition (Point point) {
 	checkWidget ();
 	if (point == null) error (SWT.ERROR_NULL_ARGUMENT);
 	return getPosition (point.x, point.y);
@@ -1014,9 +1012,6 @@ public void insert (String string) {
 public void paste () {
 	checkWidget();
 	if ((style & SWT.READ_ONLY) != 0) return;
-	if (view instanceof NSSearchField) {
-		((NSSearchField)view).currentEditor().paste(null);
-	}
 //	boolean paste = true;
 //	String oldText = null;
 //	if (hooks (SWT.Verify) || filters (SWT.Verify)) {
@@ -1307,6 +1302,14 @@ public void setEditable (boolean editable) {
 	} else {
 		((NSTextView)view).setEditable(editable);
 	}
+}
+
+void setFont(NSFont font) {
+	if ((style & SWT.MULTI) !=  0) {
+		((NSTextView) view).setFont_(font);
+		return;
+	}
+	super.setFont(font);
 }
 
 void setForeground (float [] color) {
@@ -1629,14 +1632,13 @@ int traversalCode (int key, NSEvent theEvent) {
 	if ((style & SWT.READ_ONLY) != 0) return bits;
 	if ((style & SWT.MULTI) != 0) {
 		bits &= ~SWT.TRAVERSE_RETURN;
-//		if (key == 48 /* Tab */ && theEvent != 0) {
-//			int [] modifiers = new int [1];
-//			OS.GetEventParameter (theEvent, OS.kEventParamKeyModifiers, OS.typeUInt32, null, 4, null, modifiers);
-//			boolean next = (modifiers [0] & OS.shiftKey) == 0;
-//			if (next && (modifiers [0] & OS.controlKey) == 0) {
-//				bits &= ~(SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS);
-//			}
-//		}
+		if (key == 48 /* Tab */ && theEvent != null) {
+			int modifiers = theEvent.modifierFlags ();
+			boolean next = (modifiers & OS.NSShiftKeyMask) == 0;
+			if (next && (modifiers & OS.NSControlKeyMask) == 0) {
+				bits &= ~(SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS);
+			}
+		}
 	}
 	return bits;
 }
@@ -1660,18 +1662,6 @@ String verifyText (String string, int start, int end, Event keyEvent) {
 	sendEvent (SWT.Verify, event);
 	if (!event.doit || isDisposed ()) return null;
 	return event.text;
-}
-
-void performAction(int sender) {
-	sendEvent (SWT.Modify);
-}
-
-public void setPlaceholderString(String string) {
-	if ((style & SWT.SEARCH) != 0) {
-		NSSearchField nsSearchField = (NSSearchField) view;
-        NSSearchFieldCell theCell = new NSSearchFieldCell(nsSearchField.cell());
-        theCell.setPlaceholderString(NSString.stringWith(string));
-	}
 }
 
 }

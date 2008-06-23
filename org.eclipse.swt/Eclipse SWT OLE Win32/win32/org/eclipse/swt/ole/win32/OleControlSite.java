@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,8 @@ import org.eclipse.swt.internal.win32.*;
  *	<dt><b>Events</b> <dd>Dispose, Move, Resize
  * </dl>
  *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#ole">OLE and ActiveX snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Examples: OLEExample, OleWebBrowser</a>
  */
 public class OleControlSite extends OleClientSite
 {
@@ -74,7 +76,7 @@ public class OleControlSite extends OleClientSite
  *               in the registry for this Control (for example, the VersionIndependentProgID for 
  *               Internet Explorer is Shell.Explorer)
  *
- *@exception IllegalArgumentException <ul>
+ * @exception IllegalArgumentException <ul>
  *     <li>ERROR_NULL_ARGUMENT when the parent is null
  *</ul>
  * @exception SWTException <ul>
@@ -500,10 +502,14 @@ protected int /*long*/ getLicenseInfo(GUID clsid) {
 }
 /**
  * 
- * Get the control site property specified by the dispIdMember.
+ * Get the control site property specified by the dispIdMember, or
+ * <code>null</code> if the dispId is not recognised.
+ * 
+ * @param dispId the dispId
+ * 
+ * @return the property value or <code>null</code>
  * 
  * @since 2.1
- * 
  */
 public Variant getSiteProperty(int dispId){
 	for (int i = 0; i < sitePropertyIds.length; i++) {
@@ -681,7 +687,7 @@ protected void releaseObjectInterfaces() {
  *
  * @param eventID the event identifier
  * 
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *	    <li>ERROR_NULL_ARGUMENT when listener is null</li>
@@ -722,17 +728,15 @@ public void removeEventListener(OleAutomation automation, GUID guid, int eventID
 /**	 
  * Removes the listener.
  *
- * @since 2.0
- * 
  * @param automation the automation object that provides the event notification
- * 
  * @param eventID the event identifier
- * 
- * @param listener the listener
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *	    <li>ERROR_NULL_ARGUMENT when listener is null</li>
  * </ul>
+ * 
+ * @since 2.0
  */
 public void removeEventListener(OleAutomation automation, int eventID, OleListener listener) {
 	checkWidget();
@@ -784,7 +788,8 @@ void removeEventListener(int /*long*/ iunknown, GUID guid, int eventID, OleListe
 /**	 
  * Removes the listener.
  *
- * @param listener the listener
+ * @param propertyID the identifier of the property
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *	    <li>ERROR_NULL_ARGUMENT when listener is null</li>

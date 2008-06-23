@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -19,6 +19,8 @@ import org.eclipse.swt.internal.cocoa.*;
  * such as the Display device and the Printer device. Devices
  * can have a graphics context (GC) created for them, and they
  * can be drawn on by sending messages to the associated GC.
+ *
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Device implements Drawable {
 	
@@ -221,9 +223,8 @@ protected void destroy () {
  */
 public Rectangle getBounds () {
 	checkDevice ();
-	NSScreen screen = NSScreen.mainScreen();
-	NSRect rect = screen.frame();
-	return new Rectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+	NSRect frame = getPrimaryScreen().frame();
+	return new Rectangle((int)frame.x, (int)frame.y, (int)frame.width, (int)frame.height);
 }
 
 /**
@@ -282,9 +283,7 @@ public DeviceData getDeviceData () {
  */
 public Rectangle getClientArea () {
 	checkDevice ();
-	NSScreen screen = NSScreen.mainScreen();
-	NSRect rect = screen.visibleFrame();
-	return new Rectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+	return getBounds ();
 }
 
 /**
@@ -301,7 +300,7 @@ public Rectangle getClientArea () {
  */
 public int getDepth () {
 	checkDevice ();	
-	return OS.NSBitsPerPixelFromDepth(NSScreen.mainScreen().depth());
+	return OS.NSBitsPerPixelFromDepth(getPrimaryScreen().depth());
 }
 
 /**
@@ -317,10 +316,15 @@ public int getDepth () {
  */
 public Point getDPI () {
 	checkDevice ();
-	NSDictionary dictionary = NSScreen.mainScreen().deviceDescription();
+	NSDictionary dictionary = getPrimaryScreen().deviceDescription();
 	NSValue value = new NSValue(dictionary.objectForKey(new id(OS.NSDeviceResolution())).id);
 	NSSize size = value.sizeValue();
 	return new Point((int)size.width, (int)size.height);
+}
+
+NSScreen getPrimaryScreen () {
+	NSArray screens = NSScreen.screens();
+	return new NSScreen(screens.objectAtIndex(0));
 }
 
 /**

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others. All rights reserved.
+ * Copyright (c) 2000, 2008 IBM Corporation and others. All rights reserved.
  * The contents of this file are made available under the terms
  * of the GNU Lesser General Public License (LGPL) Version 2.1 that
  * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -19,5 +19,7 @@ public class PangoLayoutLine {
 	public int start_index;
 	public int length;
 	public int /*long*/ runs;
+//	public boolean is_paragraph_start;
+//	public byte resolved_dir;
 	public static final int sizeof = OS.PangoLayoutLine_sizeof();
 }

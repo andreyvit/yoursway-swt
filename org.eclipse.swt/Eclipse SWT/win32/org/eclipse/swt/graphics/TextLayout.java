@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,7 +28,11 @@ import org.eclipse.swt.*;
  * when those instances are no longer required.
  * </p>
  * 
- *  @since 3.0
+ * @see <a href="http://www.eclipse.org/swt/snippets/#textlayout">TextLayout, TextStyle snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample, StyledText tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * 
+ * @since 3.0
  */
 public final class TextLayout extends Resource {
 	Font font;
@@ -68,7 +72,7 @@ public final class TextLayout extends Resource {
 	class StyleItem {
 		TextStyle style;
 		int start, length;
-		boolean lineBreak, softBreak, tab;	
+		boolean lineBreak, softBreak, tab;
 		
 		/*Script cache and analysis */
 		SCRIPT_ANALYSIS analysis;
@@ -136,10 +140,7 @@ public final class TextLayout extends Resource {
 			psla = 0;
 		}
 		if (fallbackFont != 0) {
-			if (mLangFontLink2 != 0) {
-				/* ReleaseFont() */
-				OS.VtblCall(8, mLangFontLink2, fallbackFont);
-			}
+			OS.DeleteObject(fallbackFont);
 			fallbackFont = 0;
 		}
 		width = ascent = descent = x = 0;
@@ -190,24 +191,6 @@ void breakRun(StyleItem run) {
 	run.psla = OS.HeapAlloc(hHeap, OS.HEAP_ZERO_MEMORY, SCRIPT_LOGATTR.sizeof * chars.length);
 	if (run.psla == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	OS.ScriptBreak(chars, chars.length, run.analysis, run.psla);
-}
-
-void checkItem (int /*long*/ hDC, StyleItem item) {
-	if (item.fallbackFont != 0) {
-		/*
-		* Feature in Windows. The fallback font returned by the MLang service
-		* can be disposed by some other client running in the same thread.
-		* For example, disposing a Browser widget internally releases all fonts
-		* in the MLang cache. The fix is to use GetObject() to detect if the 
-		* font was disposed and reshape the run.
-		*/
-		LOGFONT logFont = OS.IsUnicode ? (LOGFONT)new LOGFONTW() : new LOGFONTA();
-		if (OS.GetObject(item.fallbackFont, LOGFONT.sizeof, logFont) == 0) {
-			item.free();
-			OS.SelectObject(hDC, getItemFont(item));
-			shape(hDC, item);
-		}
-	}
 }
 
 void checkLayout () {
@@ -266,7 +249,10 @@ void computeRuns (GC gc) {
 					if (next.length != 0 && segmentsText.charAt(next.start) == '\n') {
 						run.length += 1;
 						next.free();
-						i++;
+						StyleItem[] newAllRuns = new StyleItem[allRuns.length - 1];
+						System.arraycopy(allRuns, 0, newAllRuns, 0, i + 1);
+						System.arraycopy(allRuns, i + 2, newAllRuns, i + 1, allRuns.length - i - 2);
+						allRuns = newAllRuns;
 					}
 					break;
 				}
@@ -340,12 +326,14 @@ void computeRuns (GC gc) {
 				newRun.start = run.start + start;
 				newRun.length = run.length - start;
 				newRun.style = run.style;
-				newRun.analysis = run.analysis;
+				newRun.analysis = cloneScriptAnalysis(run.analysis);
 				run.free();
 				run.length = start;
 				OS.SelectObject(srcHdc, getItemFont(run));
+				run.analysis.fNoGlyphIndex = false;
 				shape (srcHdc, run);
 				OS.SelectObject(srcHdc, getItemFont(newRun));
+				newRun.analysis.fNoGlyphIndex = false;
 				shape (srcHdc, newRun);
 				StyleItem[] newAllRuns = new StyleItem[allRuns.length + 1];
 				System.arraycopy(allRuns, 0, newAllRuns, 0, i + 1);
@@ -463,6 +451,30 @@ void destroy () {
 		mLangFontLink2 = 0;
 	}
 	OS.OleUninitialize();
+}
+
+SCRIPT_ANALYSIS cloneScriptAnalysis (SCRIPT_ANALYSIS src) {
+	SCRIPT_ANALYSIS dst = new SCRIPT_ANALYSIS();
+	dst.eScript = src.eScript;
+	dst.fRTL = src.fRTL;
+	dst.fLayoutRTL = src.fLayoutRTL;
+	dst.fLinkBefore = src.fLinkBefore;
+	dst.fLinkAfter = src.fLinkAfter;
+	dst.fLogicalOrder = src.fLogicalOrder;
+	dst.fNoGlyphIndex = src.fNoGlyphIndex;
+	dst.s = new SCRIPT_STATE();
+	dst.s.uBidiLevel = src.s.uBidiLevel; 
+	dst.s.fOverrideDirection = src.s.fOverrideDirection;
+	dst.s.fInhibitSymSwap = src.s.fInhibitSymSwap;
+	dst.s.fCharShape = src.s.fCharShape;
+	dst.s.fDigitSubstitute = src.s.fDigitSubstitute;
+	dst.s.fInhibitLigate = src.s.fInhibitLigate;
+	dst.s.fDisplayZWG = src.s.fDisplayZWG;
+	dst.s.fArabicNumContext = src.s.fArabicNumContext;
+	dst.s.fGcpClusters = src.s.fGcpClusters;
+	dst.s.fReserved = src.s.fReserved;
+	dst.s.fEngineReserved = src.s.fEngineReserved;
+	return dst;
 }
 
 /**
@@ -752,7 +764,6 @@ public void draw (GC gc, int x, int y, int selectionStart, int selectionEnd, Col
 					int end = run.start + run.length - 1;
 					boolean fullSelection = hasSelection && selectionStart <= run.start && selectionEnd >= end;
 					boolean partialSelection = hasSelection && !fullSelection && !(selectionStart > end || run.start > selectionEnd);
-					checkItem(hdc, run);
 					OS.SelectObject(hdc, getItemFont(run));
 					int drawRunY = drawY + (baseline - run.ascent);
 					if (partialSelection) {
@@ -2643,7 +2654,12 @@ public void setTabs (int[] tabs) {
 
 /**
  * Sets the receiver's text.
- *
+ *<p>
+ * Note: Setting the text also clears all the styles. This method 
+ * returns without doing anything if the new text is the same as 
+ * the current text.
+ * </p>
+ * 
  * @param text the new text
  *
  * @exception IllegalArgumentException <ul>
@@ -2690,10 +2706,25 @@ public void setWidth (int width) {
 	this.wrapWidth = width;
 }
 
-boolean shape (int /*long*/ hdc, StyleItem run, char[] chars, int[] glyphCount, int maxGlyphs) {
+boolean shape (int /*long*/ hdc, StyleItem run, char[] chars, int[] glyphCount, int maxGlyphs, SCRIPT_PROPERTIES sp) {
+	boolean useCMAPcheck = !sp.fComplex && !run.analysis.fNoGlyphIndex;
+	if (useCMAPcheck) {
+		short[] glyphs = new short[chars.length];
+		if (OS.ScriptGetCMap(hdc, run.psc, chars, chars.length, 0, glyphs) != OS.S_OK) {
+			if (run.psc != 0) {
+				OS.ScriptFreeCache(run.psc);
+				glyphCount[0] = 0;
+				OS.MoveMemory(run.psc, new int /*long*/ [1], OS.PTR_SIZEOF);
+			}
+			return false;
+		}
+	}
 	int hr = OS.ScriptShape(hdc, run.psc, chars, chars.length, maxGlyphs, run.analysis, run.glyphs, run.clusters, run.visAttrs, glyphCount);
 	run.glyphCount = glyphCount[0];
+	if (useCMAPcheck) return true;
+	
 	if (hr != OS.USP_E_SCRIPT_NOT_IN_FONT) {
+		if (run.analysis.fNoGlyphIndex) return true;
 		SCRIPT_FONTPROPERTIES fp = new SCRIPT_FONTPROPERTIES ();
 		fp.cBytes = SCRIPT_FONTPROPERTIES.sizeof;
 		OS.ScriptGetFontProperties(hdc, run.psc, fp);
@@ -2721,6 +2752,7 @@ void shape (final int /*long*/ hdc, final StyleItem run) {
 	final int[] buffer = new int[1];
 	final char[] chars = new char[run.length];
 	segmentsText.getChars(run.start, run.start + run.length, chars, 0);
+	
 	final int maxGlyphs = (chars.length * 3 / 2) + 16;
 	int /*long*/ hHeap = OS.GetProcessHeap();
 	run.glyphs = OS.HeapAlloc(hHeap, OS.HEAP_ZERO_MEMORY, maxGlyphs * 2);
@@ -2731,118 +2763,87 @@ void shape (final int /*long*/ hdc, final StyleItem run) {
 	if (run.visAttrs == 0) SWT.error(SWT.ERROR_NO_HANDLES);
 	run.psc = OS.HeapAlloc(hHeap, OS.HEAP_ZERO_MEMORY, OS.PTR_SIZEOF);
 	if (run.psc == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-	boolean shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs);
 	final short script = run.analysis.eScript;
-	
+	final SCRIPT_PROPERTIES sp = new SCRIPT_PROPERTIES();
+	OS.MoveMemory(sp, device.scripts[script], SCRIPT_PROPERTIES.sizeof);
+	boolean shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs, sp);
 	if (!shapeSucceed) {
-		/* 
-		 * Shape failed.
-		 * Try to shape with fNoGlyphIndex when the run is in the 
-		 * Private Use Area. This allows for end-user-defined character (EUDC).
-		 */
-		SCRIPT_PROPERTIES properties = new SCRIPT_PROPERTIES();
-		OS.MoveMemory(properties, device.scripts[script], SCRIPT_PROPERTIES.sizeof);
-		if (properties.fPrivateUseArea) {
-			run.analysis.fNoGlyphIndex = true;
-			shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs);
+		int /*long*/ hFont = OS.GetCurrentObject(hdc, OS.OBJ_FONT);
+		int /*long*/ ssa = OS.HeapAlloc(hHeap, OS.HEAP_ZERO_MEMORY, OS.SCRIPT_STRING_ANALYSIS_sizeof());
+		int /*long*/ metaFileDc = OS.CreateEnhMetaFile(hdc, null, null, null);
+		int /*long*/ oldMetaFont = OS.SelectObject(metaFileDc, hFont);
+		int flags = OS.SSA_METAFILE | OS.SSA_FALLBACK | OS.SSA_GLYPHS | OS.SSA_LINK;
+		if (OS.ScriptStringAnalyse(metaFileDc, chars, chars.length, 0, -1, flags, 0, null, null, 0, 0, 0, ssa) == OS.S_OK) {
+			OS.ScriptStringOut(ssa, 0, 0, 0, null, 0, 0, false);
+			OS.ScriptStringFree(ssa);
 		}
-	}
-	
-	if (!shapeSucceed) {
-		/*
-		* Shape Failed.
-		* Try to use MLANG to find a suitable font to shape the run.  
-		*/
-		if (mLangFontLink2 != 0) {
-			int[] dwCodePages = new int[1];
-			int[] cchCodePages = new int[1];
-			/* GetStrCodePages() */
-			OS.VtblCall(4, mLangFontLink2, chars, chars.length, 0, dwCodePages, cchCodePages);
-			int /*long*/[] hNewFont = new int /*long*/[1];
-			/* MapFont() */
-			if (OS.VtblCall(10, mLangFontLink2, hdc, dwCodePages[0], chars[0], hNewFont) == OS.S_OK) {
-				int /*long*/ hFont = OS.SelectObject(hdc, hNewFont[0]);
-				shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs);
-				if (shapeSucceed) {
-					run.fallbackFont = hNewFont[0];
-				} else {
-					/* ReleaseFont() */
-					OS.VtblCall(8, mLangFontLink2, hNewFont[0]);
-					OS.SelectObject(hdc, hFont);
+		OS.HeapFree(hHeap, 0, ssa);
+		OS.SelectObject(metaFileDc, oldMetaFont);
+		int /*long*/ metaFile = OS.CloseEnhMetaFile(metaFileDc);
+		final EMREXTCREATEFONTINDIRECTW emr = new EMREXTCREATEFONTINDIRECTW();
+		class MetaFileEnumProc {
+			int /*long*/ metaFileEnumProc (int /*long*/ hDC, int /*long*/ table, int /*long*/ record, int /*long*/ nObj, int /*long*/ lpData) {
+				OS.MoveMemory(emr.emr, record, EMR.sizeof);
+				switch (emr.emr.iType) {
+					case OS.EMR_EXTCREATEFONTINDIRECTW:
+						OS.MoveMemory(emr, record, EMREXTCREATEFONTINDIRECTW.sizeof);
+						break;
+					case OS.EMR_EXTTEXTOUTW:
+						return 0;
 				}
+				return 1;
 			}
+		};
+		MetaFileEnumProc object = new MetaFileEnumProc();
+		/* Avoid compiler warnings */
+		if (false) object.metaFileEnumProc(0, 0, 0, 0, 0);
+		Callback callback = new Callback(object, "metaFileEnumProc", 5);
+		int /*long*/ address = callback.getAddress();
+		if (address == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
+		OS.EnumEnhMetaFile(0, metaFile, address, 0, null);
+		OS.DeleteEnhMetaFile(metaFile);
+		callback.dispose();
+
+		int /*long*/ newFont = OS.CreateFontIndirectW(emr.elfw.elfLogFont);
+		OS.SelectObject(hdc, newFont);
+		if (shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs, sp)) {
+			run.fallbackFont = newFont;
 		}
-	}
-	
-	if (!shapeSucceed) {
-		/*
-		* Shape Failed.
-		* Try to shape the run using the LOGFONT in the cache.
-		*/
-		final int /*long*/ hFont = OS.GetCurrentObject(hdc, OS.OBJ_FONT);
-		final LOGFONT logFont = OS.IsUnicode ? (LOGFONT)new LOGFONTW () : new LOGFONTA ();
-		OS.GetObject(hFont, LOGFONT.sizeof, logFont);
-		
-		LOGFONT cachedLogFont = device.logFontsCache != null ? device.logFontsCache[script] : null;
-		if (cachedLogFont != null) {
-			cachedLogFont.lfHeight = logFont.lfHeight;
-			cachedLogFont.lfWeight = logFont.lfWeight;
-			cachedLogFont.lfItalic = logFont.lfItalic;
-			cachedLogFont.lfWidth = logFont.lfWidth;
-			int /*long*/ newFont = OS.CreateFontIndirect(cachedLogFont);
-			OS.SelectObject(hdc, newFont);
-			shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs);
-			if (shapeSucceed) {
-				run.fallbackFont = newFont;
-			} else {
-				OS.SelectObject(hdc, hFont);
-				OS.DeleteObject(newFont);
+		if (!shapeSucceed) {
+			if (!sp.fComplex) {
+				run.analysis.fNoGlyphIndex = true;
+				if (shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs, sp)) {
+					run.fallbackFont = newFont;
+				} else {
+					run.analysis.fNoGlyphIndex = false;
+				}
 			}
 		}
 		if (!shapeSucceed) {
-			/*
-			* Shape Failed.
-			* Use EnumFontFamExProc to iterate over every font in the system that supports 
-			* the charset of the run and try to shape it.  
-			*/
-			if (device.logFontsCache == null) device.logFontsCache = new LOGFONT[device.scripts.length];
-			final LOGFONT newLogFont = OS.IsUnicode ? (LOGFONT)new LOGFONTW () : new LOGFONTA ();
-			class EnumFontFamEx {
-				int EnumFontFamExProc(int lpelfe, int lpntme, int FontType, int lParam) {
-					OS.MoveMemory(newLogFont, lpelfe, LOGFONT.sizeof);
-					if (FontType == OS.RASTER_FONTTYPE) return 1;
-					newLogFont.lfHeight = logFont.lfHeight;
-					newLogFont.lfWeight = logFont.lfWeight;
-					newLogFont.lfItalic = logFont.lfItalic;
-					newLogFont.lfWidth = logFont.lfWidth;
-					int /*long*/ newFont = OS.CreateFontIndirect(newLogFont);
-					OS.SelectObject(hdc, newFont);
-					if (shape(hdc, run, chars, buffer, maxGlyphs)) {
-						run.fallbackFont = newFont;
-						LOGFONT cacheLogFont = OS.IsUnicode ? (LOGFONT)new LOGFONTW () : new LOGFONTA ();
-						OS.MoveMemory(cacheLogFont, lpelfe, LOGFONT.sizeof);
-						device.logFontsCache[script] = cacheLogFont;
-						return 0;
+			if (mLangFontLink2 != 0) {
+				int /*long*/[] hNewFont = new int /*long*/[1];
+				int[] dwCodePages = new int[1], cchCodePages = new int[1];
+				/* GetStrCodePages() */
+				OS.VtblCall(4, mLangFontLink2, chars, chars.length, 0, dwCodePages, cchCodePages);
+				/* MapFont() */
+				if (OS.VtblCall(10, mLangFontLink2, hdc, dwCodePages[0], chars[0], hNewFont) == OS.S_OK) {
+					LOGFONT logFont = OS.IsUnicode ? (LOGFONT)new LOGFONTW () : new LOGFONTA ();
+					OS.GetObject(hNewFont[0], LOGFONT.sizeof, logFont);
+					/* ReleaseFont() */
+					OS.VtblCall(8, mLangFontLink2, hNewFont[0]);
+					int /*long*/ mLangFont = OS.CreateFontIndirect(logFont);
+					int /*long*/ oldFont = OS.SelectObject(hdc, mLangFont);
+					if (shapeSucceed = shape(hdc, run, chars, buffer,  maxGlyphs, sp)) {
+						run.fallbackFont = mLangFont;
+					} else {
+						OS.SelectObject(hdc, oldFont);
+						OS.DeleteObject(mLangFont);
 					}
-					OS.SelectObject(hdc, hFont);
-					OS.DeleteObject(newFont);
-					return 1;
 				}
-			};
-			EnumFontFamEx object = new EnumFontFamEx();
-			/* Avoid compiler warnings */
-			if (false) object.EnumFontFamExProc(0, 0, 0, 0);
-			Callback callback = new Callback(object, "EnumFontFamExProc", 4);
-			int /*long*/ address = callback.getAddress();
-			if (address == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
-			SCRIPT_PROPERTIES properties = new SCRIPT_PROPERTIES();
-			OS.MoveMemory(properties, device.scripts[script], SCRIPT_PROPERTIES.sizeof);
-			int charSet = properties.fAmbiguousCharSet ? OS.DEFAULT_CHARSET : properties.bCharSet;
-			newLogFont.lfCharSet = (byte)charSet;
-			OS.EnumFontFamiliesEx(hdc, newLogFont, address, 0, 0);
-			callback.dispose();
-			shapeSucceed = run.fallbackFont != 0;
+			}
 		}
+		if (!shapeSucceed) OS.SelectObject(hdc, hFont);
+		if (newFont != run.fallbackFont) OS.DeleteObject(newFont);
 	}
 	
 	if (!shapeSucceed) {

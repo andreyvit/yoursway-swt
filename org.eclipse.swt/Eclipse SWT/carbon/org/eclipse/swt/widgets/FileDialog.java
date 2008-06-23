@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,10 @@ import org.eclipse.swt.internal.carbon.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#filedialog">FileDialog snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class FileDialog extends Dialog {
 	String [] filterNames = new String [0];
@@ -234,6 +238,16 @@ int filterProc (int theItem, int infoPtr, int callBackUD, int filterMode) {
 	return 1;
 }
 
+String getString (int cfString) {
+	if (cfString == 0) return "";
+	int length = OS.CFStringGetLength (cfString);
+	char [] buffer= new char [length];
+	CFRange range = new CFRange ();
+	range.length = length;
+	OS.CFStringGetCharacters (cfString, range, buffer);
+	return new String (buffer);
+}
+
 /**
  * Makes the dialog visible and brings it to the front
  * of the display.
@@ -348,21 +362,29 @@ public String open () {
 					int[] aeKeyword = new int [1];
 					int[] typeCode = new int [1];
 					int[] actualSize = new int [1];
-					int pathString = 0;
-					int fullString = 0;
-					int fileString = 0;
 												
 					if ((style & SWT.SAVE) != 0) {
 						if (OS.AEGetNthPtr (selection, 1, OS.typeFSRef, aeKeyword, typeCode, dataPtr, maximumSize, actualSize) == OS.noErr) {
 							byte[] fsRef = new byte[actualSize[0]];
 							OS.memmove (fsRef, dataPtr, actualSize [0]);
 							int pathUrl = OS.CFURLCreateFromFSRef (OS.kCFAllocatorDefault, fsRef);
-							int fullUrl = OS.CFURLCreateCopyAppendingPathComponent(OS.kCFAllocatorDefault, pathUrl, record.saveFileName, false);
-							pathString = OS.CFURLCopyFileSystemPath(pathUrl, OS.kCFURLPOSIXPathStyle);
-							fullString = OS.CFURLCopyFileSystemPath(fullUrl, OS.kCFURLPOSIXPathStyle);
-							fileString = record.saveFileName;
-							OS.CFRelease (pathUrl);
+							
+							/* Filter path */
+							int pathString = OS.CFURLCopyFileSystemPath (pathUrl, OS.kCFURLPOSIXPathStyle);
+							filterPath = getString (pathString);
+							OS.CFRelease (pathString);
+
+							/* Full path */
+							int fullUrl = OS.CFURLCreateCopyAppendingPathComponent (OS.kCFAllocatorDefault, pathUrl, record.saveFileName, false);
+							int fullString = OS.CFURLCopyFileSystemPath (fullUrl, OS.kCFURLPOSIXPathStyle);
+							fullPath = getString (fullString);
+							OS.CFRelease (fullString);
 							OS.CFRelease (fullUrl);
+
+							/* File name */
+							fileName = fileNames [0] = getString (record.saveFileName);
+							
+							OS.CFRelease (pathUrl);
 						}
 					} else {
 						for (int i = 0; i < count [0]; i++) {
@@ -370,56 +392,43 @@ public String open () {
 								byte[] fsRef = new byte[actualSize[0]];
 								OS.memmove (fsRef, dataPtr, actualSize [0]);
 								int url = OS.CFURLCreateFromFSRef (OS.kCFAllocatorDefault, fsRef);
+								int fullString = OS.CFURLCopyFileSystemPath (url, OS.kCFURLPOSIXPathStyle);
+								
+								/* File path */
+								int pathUrl = OS.CFURLCreateCopyDeletingLastPathComponent (OS.kCFAllocatorDefault, url);
+								int pathString = OS.CFURLCopyFileSystemPath (pathUrl, OS.kCFURLPOSIXPathStyle);
+								String path = getString (pathString);
+								OS.CFRelease (pathString);
+								OS.CFRelease (pathUrl);
+
 								if (i == 0) {
-									int pathUrl = OS.CFURLCreateCopyDeletingLastPathComponent(OS.kCFAllocatorDefault, url);
-									pathString = OS.CFURLCopyFileSystemPath (pathUrl, OS.kCFURLPOSIXPathStyle);
-									fullString = OS.CFURLCopyFileSystemPath (url, OS.kCFURLPOSIXPathStyle);
-									fileString = OS.CFURLCopyLastPathComponent (url);
-									OS.CFRelease (pathUrl);
-								} else {
-									int lastString = OS.CFURLCopyLastPathComponent (url);
-									int length = OS.CFStringGetLength (lastString);
-									char [] buffer= new char [length];
-									CFRange range = new CFRange ();
-									range.length = length;
-									OS.CFStringGetCharacters (lastString, range, buffer);
-									fileNames [i] = new String (buffer);
-									OS.CFRelease (lastString);
+									/* Full path */
+									fullPath = getString (fullString);
+
+									/* Filter path */
+									filterPath = path;
+
+									/* File name */
+									int fileString = OS.CFURLCopyLastPathComponent (url);
+									fileName = fileNames [0] = getString (fileString);
+									OS.CFRelease (fileString);
+								} else {									
+									if (path.equals (filterPath)) {
+										int fileString = OS.CFURLCopyLastPathComponent (url);
+										fileNames [i] = getString (fileString);
+										OS.CFRelease (fileString);
+									} else {
+										fileNames [i] = getString (fullString);
+									}
 								}
+								OS.CFRelease (fullString);
 								OS.CFRelease (url);
 							}
 						}
 					}
 					OS.DisposePtr (dataPtr);
-					
-					if (pathString != 0) {		
-						int length = OS.CFStringGetLength (pathString);
-						char [] buffer= new char [length];
-						CFRange range = new CFRange ();
-						range.length = length;
-						OS.CFStringGetCharacters (pathString, range, buffer);
-						OS.CFRelease (pathString);
-						filterPath = new String (buffer);
-					}
-					if (fullString != 0) {
-						int length = OS.CFStringGetLength (fullString);
-						char [] buffer= new char [length];
-						CFRange range = new CFRange ();
-						range.length = length;
-						OS.CFStringGetCharacters (fullString, range, buffer);
-						OS.CFRelease (fullString);
-						fullPath = new String (buffer);
-					} 
-					if (fileString != 0) {
-						int length = OS.CFStringGetLength (fileString);
-						char [] buffer= new char [length];
-						CFRange range = new CFRange ();
-						range.length = length;
-						OS.CFStringGetCharacters (fileString, range, buffer);
-						OS.CFRelease (fileString);
-						fileName = fileNames [0] = new String (buffer);
-					}
 				}
+				OS.NavDisposeReply (record);
 			}
 		}
 	}
@@ -457,8 +466,10 @@ public void setFileName (String string) {
  * which may be null.
  * <p>
  * The strings are platform specific. For example, on
- * Windows, an extension filter string is typically of
- * the form "*.extension", where "*.*" matches all files.
+ * some platforms, an extension filter string is typically
+ * of the form "*.extension", where "*.*" matches all files.
+ * For filters with multiple extensions, use semicolon as
+ * a separator, e.g. "*.jpg;*.png".
  * </p>
  *
  * @param extensions the file extension filter
@@ -491,7 +502,7 @@ public void setFilterIndex (int index) {
 }
 
 /**
- * Sets the the names that describe the filter extensions
+ * Sets the names that describe the filter extensions
  * which the dialog will use to filter the files it shows
  * to the argument, which may be null.
  * <p>

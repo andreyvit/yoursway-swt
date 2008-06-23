@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -40,6 +40,10 @@ import org.eclipse.swt.accessibility.*;
  * <dt><b>Events:</b>
  * <dd>DefaultSelection, Modify, Selection, Verify</dd>
  * </dl>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#ccombo">CCombo snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public final class CCombo extends Composite {
 
@@ -490,7 +494,7 @@ public void deselectAll () {
 	list.deselectAll ();
 }
 void dropDown (boolean drop) {
-	if (drop == isDropped ()) return;
+	if (drop == isDropped () || !isVisible()) return;
 	if (!drop) {
 		popup.setVisible (false);
 		if (!isDisposed () && isFocusControl()) {
@@ -1536,7 +1540,9 @@ public void setVisible (boolean visible) {
 	 * If so then do not continue.
 	 */
 	if (isDisposed ()) return;
-	if (!visible) popup.setVisible(false);
+	// TEMPORARY CODE
+	if (popup == null || popup.isDisposed ()) return;
+	if (!visible) popup.setVisible (false);
 }
 /**
  * Sets the number of items that are visible in the drop

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2007 IBM Corporation and others.
+ * Copyright (c) 2007, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,6 +28,7 @@ import org.eclipse.swt.widgets.*;
  *
  * @see DragSourceEffect
  * @see DragSourceEvent
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.3
  */
@@ -80,7 +81,11 @@ public class TreeDragSourceEffect extends DragSourceEffect {
 			SHDRAGIMAGE shdi = new SHDRAGIMAGE();
 			int DI_GETDRAGIMAGE = OS.RegisterWindowMessage (new TCHAR (0, "ShellGetDragImage", true)); //$NON-NLS-1$
 			if (OS.SendMessage (control.handle, DI_GETDRAGIMAGE, 0, shdi) != 0) {
-				event.x += shdi.ptOffset.x;
+				if ((control.getStyle() & SWT.MIRRORED) != 0) {
+					event.x += shdi.sizeDragImage.cx - shdi.ptOffset.x;
+				} else {
+					event.x += shdi.ptOffset.x;
+				}
 				event.y += shdi.ptOffset.y;
 				int /*long*/ hImage = shdi.hbmpDragImage;
 				if (hImage != 0) {
@@ -119,7 +124,21 @@ public class TreeDragSourceEffect extends DragSourceEffect {
 					
 					PaletteData palette = new PaletteData(0xFF00, 0xFF0000, 0xFF000000);
 					ImageData data = new ImageData(srcWidth, srcHeight, bm.bmBitsPixel, palette, bm.bmWidthBytes, srcData);
-					data.transparentPixel = shdi.crColorKey << 8;
+					if (shdi.crColorKey == -1) {
+						byte[] alphaData = new byte[srcWidth * srcHeight];
+						int spinc = dibBM.bmWidthBytes - srcWidth * 4;
+						int ap = 0, sp = 3;
+						for (int y = 0; y < srcHeight; ++y) {
+							for (int x = 0; x < srcWidth; ++x) {
+								alphaData [ap++] = srcData [sp];
+								sp += 4;
+							}
+							sp += spinc;
+						}
+						data.alphaData = alphaData;
+					} else {
+						data.transparentPixel = shdi.crColorKey << 8;
+					}
 					dragSourceImage = new Image (control.getDisplay (), data);
 					OS.SelectObject (memHdc, oldMemBitmap);
 					OS.DeleteDC (memHdc);
@@ -127,6 +146,7 @@ public class TreeDragSourceEffect extends DragSourceEffect {
 					OS.SelectObject (srcHdc, oldSrcBitmap);
 					OS.DeleteDC (srcHdc);
 					OS.ReleaseDC (0, hdc);
+					OS.DeleteObject (hImage);
 					return dragSourceImage;
 				}
 			}

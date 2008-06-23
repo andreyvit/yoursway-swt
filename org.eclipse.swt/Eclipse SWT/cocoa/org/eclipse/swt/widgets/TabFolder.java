@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -41,6 +41,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tabfolder">TabFolder, TabItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class TabFolder extends Composite {
 	TabItem [] items;
@@ -169,13 +173,11 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 void createHandle () {
 	SWTTabView widget = (SWTTabView)new SWTTabView().alloc();
 	widget.initWithFrame (new NSRect());
-	widget.setTag(jniRef);
 	widget.setDelegate(widget);
 	if ((style & SWT.BOTTOM) != 0) {
 		widget.setTabViewType(OS.NSBottomTabsBezelBorder);
 	}
 	view = widget;
-	parent.contentView().addSubview_(view);
 }
 
 void createItem (TabItem item, int index) {
@@ -249,6 +251,24 @@ public TabItem getItem (int index) {
 	return items [index];
 }
 
+/**
+ * Returns the tab item at the given point in the receiver
+ * or null if no such item exists. The point is in the
+ * coordinate system of the receiver.
+ *
+ * @param point the point used to locate the item
+ * @return the tab item at the given point, or null if the point is not in a tab item
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_NULL_ARGUMENT - if the point is null</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public TabItem getItem (Point point) {
 	checkWidget ();
 	if (point == null) error (SWT.ERROR_NULL_ARGUMENT);
@@ -447,21 +467,6 @@ public void removeSelectionListener (SelectionListener listener) {
 	eventTable.unhook (SWT.DefaultSelection,listener);	
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = super.setBounds(x, y, width, height, move, resize);
-	if ((result & RESIZED) != 0) {
-		int index = getSelectionIndex ();
-		if (index != -1) {
-			TabItem item = items [index];
-			Control control = item.control;
-			if (control != null && !control.isDisposed ()) {
-				control.setBounds (getClientArea ());
-			}
-		}
-	}
-	return result;
-}
-
 void setFont (NSFont font) {
 	((NSTabView)view).setFont(font);
 }
@@ -557,7 +562,6 @@ void setSelection (int index, boolean notify, boolean force) {
 		if (item != null) {
 			Control control = item.control;
 			if (control != null && !control.isDisposed ()) {
-				control.setBounds (getClientArea ());
 				control.setVisible (true);
 			}
 			if (notify) {
@@ -600,7 +604,6 @@ void willSelectTabViewItem(int tabView, int tabViewItem) {
 			}
 			Control control = item.control;
 			if (control != null && !control.isDisposed ()) {
-				control.setBounds (getClientArea ());
 				control.setVisible (true);
 			}
 			Event event = new Event ();

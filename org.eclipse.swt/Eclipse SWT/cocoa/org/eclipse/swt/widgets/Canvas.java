@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -33,6 +33,9 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p>
  *
  * @see Composite
+ * @see <a href="http://www.eclipse.org/swt/snippets/#canvas">Canvas snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Canvas extends Composite {
 	Caret caret;
@@ -42,14 +45,14 @@ Canvas () {
 	/* Do nothing */
 }
 
-boolean becomeFirstResponder () {
+boolean becomeFirstResponder (int id, int sel) {
 	if (caret != null) caret.setFocus ();
-	return super.becomeFirstResponder();
+	return super.becomeFirstResponder(id, sel);
 }
 
-boolean resignFirstResponder () {
+boolean resignFirstResponder (int id, int sel) {
 	if (caret != null) caret.killFocus ();
-	return super.resignFirstResponder();
+	return super.resignFirstResponder(id, sel);
 }
 
 
@@ -111,7 +114,12 @@ public void drawBackground (GC gc, int x, int y, int width, int height) {
 	if (gc.isDisposed ()) error (SWT.ERROR_INVALID_ARGUMENT);
 	Control control = findBackgroundControl ();
 	if (control != null) {
-//		control.fillBackground (handle, gc.handle, new Rectangle (x, y, width, height));
+		NSRect rect = new NSRect();
+		rect.x = x;
+		rect.y = y;
+		rect.width = width;
+		rect.height = height;
+		control.fillBackground (view, gc.handle, rect);
 	} else {
 		gc.fillRectangle (x, y, width, height);
 	}
@@ -161,7 +169,7 @@ void drawRect(int id, NSRect rect) {
  * drawing in the window any other time.
  * </p>
  *
- * @return the caret
+ * @return the caret for the receiver, may be null
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -173,6 +181,18 @@ public Caret getCaret () {
     return caret;
 }
 
+/**
+ * Returns the IME.
+ *
+ * @return the IME
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public IME getIME () {
 	checkWidget();
     return ime;
@@ -311,6 +331,21 @@ public void setFont (Font font) {
 	super.setFont (font);
 }
 
+/**
+ * Sets the receiver's IME.
+ * 
+ * @param ime the new IME for the receiver, may be null
+ *
+ * @exception IllegalArgumentException <ul>
+ *    <li>ERROR_INVALID_ARGUMENT - if the IME has been disposed</li>
+ * </ul>
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setIME (IME ime) {
 	checkWidget ();
 	if (ime != null && ime.isDisposed()) error(SWT.ERROR_INVALID_ARGUMENT);

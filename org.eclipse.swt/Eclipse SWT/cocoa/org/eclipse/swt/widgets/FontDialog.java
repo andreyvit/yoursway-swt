@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -28,6 +28,9 @@ import org.eclipse.swt.internal.cocoa.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class FontDialog extends Dialog {
 	FontData fontData;
@@ -211,7 +214,7 @@ public FontData open () {
 	SWTPanelDelegate delegate = (SWTPanelDelegate)new SWTPanelDelegate().alloc().init();
 	int jniRef = OS.NewGlobalRef(this);
 	if (jniRef == 0) SWT.error(SWT.ERROR_NO_HANDLES);
-	delegate.setTag(jniRef);
+	OS.object_setInstanceVariable(delegate.id, Display.SWT_OBJECT, jniRef);
 	panel.setDelegate(delegate);
 	fontData = null;
 	panel.orderFront(null);
@@ -221,7 +224,7 @@ public FontData open () {
 	OS.DeleteGlobalRef(jniRef);
 	NSFont font = NSFontManager.sharedFontManager().selectedFont();
 	if (font != null) {
-		//TODO - this does work
+		//TODO - this does not work
 		fontData = Font.cocoa_new(display, font).getFontData()[0];
 	}
 	return fontData;

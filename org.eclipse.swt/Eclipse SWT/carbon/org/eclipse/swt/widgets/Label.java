@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -22,6 +22,12 @@ import org.eclipse.swt.graphics.*;
  * user interface object that displays a string or image.
  * When SEPARATOR is specified, displays a single
  * vertical or horizontal line.
+ * <p>
+ * Shadow styles are hints and may not be honoured
+ * by the platform.  To create a separator label
+ * with the default shadow style for the platform,
+ * do not specify a shadow style.
+ * </p>
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>SEPARATOR, HORIZONTAL, VERTICAL</dd>
@@ -38,6 +44,10 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#label">Label snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Label extends Control {
 	String text = "";
@@ -83,6 +93,31 @@ public class Label extends Control {
  */
 public Label (Composite parent, int style) {
 	super (parent, checkStyle (style));
+}
+
+void addRelation (Control control) {
+	if (!control.isDescribedByLabel ()) return;
+	
+	int labelElement = OS.AXUIElementCreateWithHIObjectAndIdentifier (handle, 0);
+	String string = OS.kAXTitleUIElementAttribute;  // control LabeledBy this
+	char [] buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	int stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.HIObjectSetAuxiliaryAccessibilityAttribute(control.focusHandle (), 0, stringRef, labelElement);
+	OS.CFRelease(labelElement);
+	OS.CFRelease(stringRef);
+	
+	int relatedElement = OS.AXUIElementCreateWithHIObjectAndIdentifier (control.focusHandle (), 0);
+	int array = OS.CFArrayCreateMutable(OS.kCFAllocatorDefault, 1, 0);
+	OS.CFArrayAppendValue(array, relatedElement);
+	string = OS.kAXServesAsTitleForUIElementsAttribute;  // this LabelFor control
+	buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.HIObjectSetAuxiliaryAccessibilityAttribute(handle, 0, stringRef, array);
+	OS.CFRelease(relatedElement);
+	OS.CFRelease(stringRef);
+	OS.CFRelease(array);
 }
 
 static int checkStyle (int style) {
@@ -230,6 +265,22 @@ public String getText () {
 	checkWidget();
 	if ((style & SWT.SEPARATOR) != 0) return "";
 	return text;
+}
+
+boolean isDescribedByLabel () {
+	return false;
+}
+
+/*
+ * Remove "Label for" relations from the receiver.
+ */
+void removeRelation () {
+	String string = OS.kAXServesAsTitleForUIElementsAttribute;
+	char [] buffer = new char [string.length ()];
+	string.getChars (0, buffer.length, buffer, 0);
+	int stringRef = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
+	OS.HIObjectSetAuxiliaryAccessibilityAttribute(handle, 0, stringRef, 0);
+	OS.CFRelease(stringRef);
 }
 
 /**

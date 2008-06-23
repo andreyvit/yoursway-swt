@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,8 +32,10 @@ public class TextTransfer extends ByteArrayTransfer {
 	static TextTransfer _instance = new TextTransfer();
 	static final String TEXT = "TEXT"; //$NON-NLS-1$
 	static final String UTEXT = "utxt"; //$NON-NLS-1$
+	static final String UTF8 = "utf8"; //$NON-NLS-1$
 	static final int TEXTID = OS.kScrapFlavorTypeText;
 	static final int UTEXTID = OS.kScrapFlavorTypeUnicode;
+	static final int UTF8ID = ('u'<<24) + ('t'<<16) + ('f'<<8) + '8';
 
 TextTransfer() {}
 
@@ -51,10 +53,10 @@ public static TextTransfer getInstance () {
  * represented by a java <code>String</code> to a platform specific representation.
  * 
  * @param object a java <code>String</code> containing text
- * @param transferData an empty <code>TransferData</code> object; this object
- *  will be filled in on return with the platform specific format of the data
+ * @param transferData an empty <code>TransferData</code> object that will
+ *  	be filled in on return with the platform specific format of the data
  *  
- * @see Transfer#javaToNative
+ * @see Transfer#nativeToJava
  */
 public void javaToNative (Object object, TransferData transferData) {
 	if (!checkText(object) || !isSupportedType(transferData)) {
@@ -65,6 +67,7 @@ public void javaToNative (Object object, TransferData transferData) {
 	string.getChars (0, chars.length, chars, 0);
 	transferData.result = -1;
 	switch (transferData.type) {
+		case UTF8ID:
 		case TEXTID: {
 			int cfstring = OS.CFStringCreateWithCharacters(OS.kCFAllocatorDefault, chars, chars.length);
 			if (cfstring == 0) return;
@@ -72,7 +75,7 @@ public void javaToNative (Object object, TransferData transferData) {
 			try {
 				CFRange range = new CFRange();
 				range.length = chars.length;
-				int encoding = OS.CFStringGetSystemEncoding();
+				int encoding = transferData.type == UTF8ID ? OS.kCFStringEncodingUTF8 : OS.CFStringGetSystemEncoding();
 				int[] size = new int[1];
 				int numChars = OS.CFStringGetBytes(cfstring, range, encoding, (byte)'?', true, null, 0, size);
 				if (numChars == 0) return;
@@ -105,15 +108,16 @@ public void javaToNative (Object object, TransferData transferData) {
  * @param transferData the platform specific representation of the data to be converted
  * @return a java <code>String</code> containing text if the conversion was successful; otherwise null
  * 
- * @see Transfer#nativeToJava
+ * @see Transfer#javaToNative
  */
 public Object nativeToJava(TransferData transferData){
 	if (!isSupportedType(transferData) || transferData.data == null) return null;
 	if (transferData.data.length == 0 || transferData.data[0].length == 0) return null;
 	byte[] buffer = transferData.data[0];
 	switch (transferData.type) {
+		case UTF8ID:
 		case TEXTID: {
-			int encoding = OS.CFStringGetSystemEncoding();
+			int encoding = transferData.type == UTF8ID ? OS.kCFStringEncodingUTF8 : OS.CFStringGetSystemEncoding();
 			int cfstring = OS.CFStringCreateWithBytes(OS.kCFAllocatorDefault, buffer, buffer.length, encoding, true);
 			if (cfstring == 0) return null;
 			try {
@@ -138,11 +142,11 @@ public Object nativeToJava(TransferData transferData){
 }
 
 protected int[] getTypeIds() {
-	return new int[] {UTEXTID, TEXTID};
+	return new int[] {UTEXTID, UTF8ID, TEXTID};
 }
 
 protected String[] getTypeNames() {
-	return new String[] {UTEXT, TEXT};
+	return new String[] {UTEXT, UTF8, TEXT};
 }
 
 boolean checkText(Object object) {

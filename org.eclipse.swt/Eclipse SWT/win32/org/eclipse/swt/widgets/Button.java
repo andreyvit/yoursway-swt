@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -39,6 +39,10 @@ import org.eclipse.swt.events.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#button">Button snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 
 public class Button extends Control {
@@ -648,6 +652,8 @@ boolean getDefault () {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @since 3.4
  */
 public boolean getGrayed () {
 	checkWidget();
@@ -758,7 +764,7 @@ boolean mnemonicMatch (char key) {
 	return Character.toUpperCase (key) == Character.toUpperCase (mnemonic);
 }
 
-void printWidget (int /*long*/ hwnd, int /*long*/ hDC) {
+void printWidget (int /*long*/ hwnd, GC gc) {
 	/*
 	* Bug in Windows.  For some reason, PrintWindow() fails
 	* when it is called on a push button.  The fix is to
@@ -766,6 +772,7 @@ void printWidget (int /*long*/ hwnd, int /*long*/ hDC) {
 	* that WM_PRINT cannot be used all the time because it
 	* fails for browser controls when the browser has focus.
 	*/
+	int /*long*/ hDC = gc.handle;
 	if (!OS.PrintWindow (hwnd, hDC, 0)) {
 		int flags = OS.PRF_CLIENT | OS.PRF_NONCLIENT | OS.PRF_ERASEBKGND | OS.PRF_CHILDREN;
 		OS.SendMessage (hwnd, OS.WM_PRINT, hDC, flags);
@@ -960,6 +967,8 @@ public void setImage (Image image) {
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
+ * 
+ * @since 3.4
  */
 public void setGrayed (boolean grayed) {
 	checkWidget ();
@@ -1004,9 +1013,9 @@ public void setGrayed (boolean grayed) {
 	}
 }
 
-boolean setRadioFocus () {
+boolean setRadioFocus (boolean tabbing) {
 	if ((style & SWT.RADIO) == 0 || !getSelection ()) return false;
-	return setFocus ();
+	return tabbing ? setTabItemFocus () : setFocus ();
 }
 
 boolean setRadioSelection (boolean value) {

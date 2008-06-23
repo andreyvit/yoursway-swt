@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -97,6 +97,9 @@ import org.eclipse.swt.widgets.*;
  * <dl>
  * <dt><b>Styles:</b><dd>H_SCROLL, V_SCROLL
  * </dl>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#scrolledcomposite">ScrolledComposite snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ScrolledComposite extends Composite {
 
@@ -298,6 +301,8 @@ public Control getContent() {
  * Returns <code>true</code> if the receiver automatically scrolls to a focused child control 
  * to make it visible. Otherwise, returns <code>false</code>.
  * 
+ * @return a boolean indicating whether focused child controls are automatically scrolled into the viewport
+ *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
@@ -633,7 +638,7 @@ public void setMinWidth(int width) {
  *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
  * </ul>
  * 
- *  @since 3.4
+ * @since 3.4
  */
 public void setShowFocusedControl(boolean show) {
 	checkWidget();

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -29,9 +29,11 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Scrollable extends Control {
- 	SWTScrollView scrollView;
+ 	NSScrollView scrollView;
 	ScrollBar horizontalBar, verticalBar;
 	
 Scrollable () {
@@ -123,16 +125,24 @@ ScrollBar createScrollBar (int style) {
 	bar.display = display;
 	NSScroller scroller;
 	int actionSelector;
+	NSRect rect = new NSRect();
 	if ((style & SWT.H_SCROLL) != 0) {
-		scroller = scrollView.horizontalScroller();
+		rect.width = 1;
+	} else {
+		rect.height = 1;
+	}
+	scroller = (SWTScroller)new SWTScroller().alloc();
+	scroller.initWithFrame(rect);
+	if ((style & SWT.H_SCROLL) != 0) {
+		scrollView.setHorizontalScroller(scroller);
 		actionSelector = OS.sel_sendHorizontalSelection;
 	} else {
-		scroller = scrollView.verticalScroller();
+		scrollView.setVerticalScroller(scroller);
 		actionSelector = OS.sel_sendVerticalSelection;
 	}
 	bar.view = scroller;
 	bar.createJNIRef();
-	scroller.setTag(bar.jniRef);
+	bar.register();
 	if ((state & CANVAS) == 0) {
 		bar.target = scroller.target();
 		bar.actionSelector = scroller.action();
@@ -146,6 +156,11 @@ void createWidget () {
 	super.createWidget ();
 	if ((style & SWT.H_SCROLL) != 0) horizontalBar = createScrollBar (SWT.H_SCROLL);
 	if ((style & SWT.V_SCROLL) != 0) verticalBar = createScrollBar (SWT.V_SCROLL);
+}
+
+void deregister () {
+	super.deregister ();
+	if (scrollView != null) display.removeWidget (scrollView);
 }
 
 /**
@@ -209,13 +224,23 @@ boolean hooksKeys () {
 	return hooks (SWT.KeyDown) || hooks (SWT.KeyUp) || hooks (SWT.Traverse);
 }
 
+boolean isTrim (NSView view) {
+	if (scrollView != null) {
+		if (scrollView.id == view.id) return true;
+		if (horizontalBar != null && horizontalBar.view.id == view.id) return true;
+		if (verticalBar != null && verticalBar.view.id == view.id) return true;
+	}
+	return super.isTrim (view);
+}
+
+void register () {
+	super.register ();
+	if (scrollView != null) display.addWidget (scrollView, this);
+}
 
 void releaseHandle () {
 	super.releaseHandle ();
-	if (scrollView != null)  {
-		scrollView.setTag(-1);
-		scrollView.release();
-	}
+	if (scrollView != null) scrollView.release();
 	scrollView = null;
 }
 
@@ -262,27 +287,6 @@ void sendHorizontalSelection () {
 	horizontalBar.sendSelection ();
 }
 
-boolean scrollBar(ScrollBar bar, float delta) {
-	if (bar != null && bar.getEnabled() && Math.abs(delta) > 1e-5) {
-		bar.setSelection(Math.max(0, bar.getSelection()
-				- (int) (bar.getIncrement() * delta)));
-		Event event = new Event();
-		event.detail = delta > 0 ? SWT.PAGE_UP : SWT.PAGE_DOWN;
-		bar.sendEvent(SWT.Selection, event);
-		return true;
-	}
-	return false;
-}
-
-boolean sendMouseWheel (float deltaX, float deltaY) {
-	if ((state & CANVAS) != 0) {
-		boolean b = scrollBar(horizontalBar, deltaX);
-		b |= scrollBar(verticalBar, deltaY);
-		return b;
-	}
-	return false;
-}
-
 void sendVerticalSelection () {
 	verticalBar.sendSelection ();
 }
@@ -298,10 +302,15 @@ boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
 		bar.state |= HIDDEN;
 	}
 	resizeClientArea ();
-//	setVisible (bar.handle, visible);
+	bar.view.setHidden(!visible);
 	bar.sendEvent (visible ? SWT.Show : SWT.Hide);
 	sendEvent (SWT.Resize);
 	return true;
+}
+
+void setZOrder () {
+	super.setZOrder ();
+	if (scrollView != null) scrollView.setDocumentView (view);
 }
 
 NSView topView () {

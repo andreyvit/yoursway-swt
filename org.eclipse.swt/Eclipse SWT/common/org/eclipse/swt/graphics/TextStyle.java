@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,8 @@ import org.eclipse.swt.*;
  * @see TextLayout
  * @see Font
  * @see Color
+ * @see <a href="http://www.eclipse.org/swt/snippets/#textlayout">TextLayout, TextStyle snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  *  
  * @since 3.0
  */
@@ -165,7 +167,7 @@ public TextStyle (Font font, Color foreground, Color background) {
 /** 
  * Create a new text style from an existing text style.
  * 
- *@param style the style to copy 
+ * @param style the style to copy 
  *
  * @since 3.4
  */

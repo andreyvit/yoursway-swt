@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -13,6 +13,7 @@ package org.eclipse.swt.widgets;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.*;
 import org.eclipse.swt.graphics.*;
+import org.eclipse.swt.internal.*;
 import org.eclipse.swt.internal.cocoa.*;
 
 /**
@@ -110,14 +111,17 @@ import org.eclipse.swt.internal.cocoa.*;
  *
  * @see Decorations
  * @see SWT
+ * @see <a href="http://www.eclipse.org/swt/snippets/#shell">Shell snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Shell extends Decorations {
 	NSWindow window;
 	SWTWindowDelegate windowDelegate;
+	NSBezierPath regionPath;
 	boolean opened, moved, resized, fullScreen;
 //	boolean resized, moved, drawing, reshape, update, deferDispose, active, disposed, opened, fullScreen;
 	Control lastActive;
-	Region region;
 	Rectangle normalBounds;
 
 	static int DEFAULT_CLIENT_WIDTH = -1;
@@ -347,6 +351,23 @@ public Shell (Shell parent, int style) {
 	this (parent != null ? parent.display : null, parent, style, 0, false);
 }
 
+/**	 
+ * Invokes platform specific functionality to allocate a new shell
+ * that is not embedded.
+ * <p>
+ * <b>IMPORTANT:</b> This method is <em>not</em> part of the public
+ * API for <code>Shell</code>. It is marked public only so that it
+ * can be shared within the packages provided by SWT. It is not
+ * available on all platforms, and should never be called from
+ * application code.
+ * </p>
+ *
+ * @param display the display for the shell
+ * @param handle the handle for the shell
+ * @return a new shell object containing the specified display and handle
+ * 
+ * @since 3.3
+ */
 public static Shell internal_new (Display display, int handle) {
 	return new Shell (display, null, SWT.NO_TRIM, handle, false);
 }
@@ -444,19 +465,12 @@ public Rectangle computeTrim (int x, int y, int width, int height) {
 }
 
 void createHandle () {
-	state |= CANVAS;// | GRAB | HIDDEN;
+	state |= CANVAS | HIDDEN;// | GRAB;
 	if (window != null) {
 		view = window.contentView();
-		return;
 	} else {
 		SWTWindow swtWindow = (SWTWindow) new SWTWindow ().alloc ();
-		swtWindow.setTag(jniRef);
 		window = (NSWindow)swtWindow;
-		NSRect rect = new NSRect();
-		Monitor monitor = getMonitor ();
-		Rectangle clientArea = monitor.getClientArea ();
-		rect.width = clientArea.width * 5 / 8;
-		rect.height = clientArea.height * 5 / 8;
 		int styleMask = OS.NSBorderlessWindowMask;
 		if ((style & SWT.NO_TRIM) == 0) {
 			styleMask = OS.NSTitledWindowMask;
@@ -465,23 +479,55 @@ void createHandle () {
 			if ((style & SWT.MAX) != 0) styleMask |= OS.NSResizableWindowMask;
 			if ((style & SWT.RESIZE) != 0) styleMask |= OS.NSResizableWindowMask;
 		}
-		window = window.initWithContentRect_styleMask_backing_defer_(rect, styleMask, OS.NSBackingStoreBuffered, false);
-		display.cascade = window.cascadeTopLeftFromPoint(display.cascade);
+		NSScreen screen = null;
+		NSScreen primaryScreen = new NSScreen(NSScreen.screens().objectAtIndex(0));
+		if (parent != null) screen = parent.getShell().window.screen();
+		if (screen == null) screen = primaryScreen;
+		window = window.initWithContentRect_styleMask_backing_defer_screen_(new NSRect(), styleMask, OS.NSBackingStoreBuffered, false, screen);
+		display.cascadeWindow(window, screen);
+		NSRect screenFrame = screen.frame();
+		float width = screenFrame.width * 5 / 8, height = screenFrame.height * 5 / 8;;
+		NSRect frame = window.frame();
+		NSRect primaryFrame = primaryScreen.frame();
+		frame.y = primaryFrame.height - ((primaryFrame.height - (frame.y + frame.height)) + height);
+		frame.width = width;
+		frame.height = height;
+		window.setFrame_display_(frame, false);
 		if ((style & SWT.ON_TOP) != 0) {
 			window.setLevel(OS.NSFloatingWindowLevel);
 		}
+		super.createHandle ();
 	}
-	
-	createHandle (null);
-	
-	window.setContentView (topView());
+	window.setAcceptsMouseMovedEvents(true);
 	windowDelegate = (SWTWindowDelegate)new SWTWindowDelegate().alloc().init();
-	windowDelegate.setTag(jniRef);
 	window.setDelegate(windowDelegate);
 }
 
+void deregister () {
+	super.deregister ();
+	if (window != null) display.removeWidget (window);
+	if (windowDelegate != null) display.removeWidget (windowDelegate);
+}
+
 void destroyWidget () {
+	NSWindow window = this.window;
 	releaseHandle ();
+	if (window != null) {
+//		NSArray array = new NSArray(NSArray.arrayWithObject(OS.NSDefaultRunLoopMode).id);
+//		NSRunLoop.currentRunLoop().performSelector(OS.sel_close, window, null, 0, array);
+		window.close();
+	}
+}
+
+void drawRect(int id, NSRect rect) {
+	if (regionPath != null && background == null) {
+		NSGraphicsContext context = NSGraphicsContext.currentContext();
+		context.saveGraphicsState();
+		NSColor.windowBackgroundColor().setFill();
+		NSBezierPath.fillRect(rect);
+		context.restoreGraphicsState();
+	}
+	super.drawRect(id, rect);
 }
 
 Control findBackgroundControl () {
@@ -498,43 +544,7 @@ Cursor findCursor () {
 
 void fixShell (Shell newShell, Control control) {
 	if (this == newShell) return;
-//	if (control == lastActive) setActiveControl (null);
-}
-
-void flagsChanged(int theEvent) {
-	Display display = this.display;
-	NSEvent nsEvent = new NSEvent(theEvent);
-	int modifiers = nsEvent.modifierFlags();
-	int lastModifiers = display.lastModifiers;
-//	int chord = OS.GetCurrentEventButtonState ();
-	int type = SWT.KeyUp;	
-	if ((modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSAlternateKeyMask) != 0 && (lastModifiers & OS.NSAlternateKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSShiftKeyMask) != 0 && (lastModifiers & OS.NSShiftKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSControlKeyMask) != 0 && (lastModifiers & OS.NSControlKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSCommandKeyMask) != 0 && (lastModifiers & OS.NSCommandKeyMask) == 0) type = SWT.KeyDown;
-	Control target = display.getFocusControl();
-	if (type == SWT.KeyUp && (modifiers & OS.NSAlphaShiftKeyMask) == 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) != 0) {
-		if (target != null) {
-			Event event = new Event ();
-			event.keyCode = SWT.CAPS_LOCK;
-	//		setInputState (event, SWT.KeyDown, chord, modifiers);
-			target.sendKeyEvent (SWT.KeyDown, event);
-		}
-	}
-	Event event = new Event ();
-//	setInputState (event, type, chord, modifiers);
-	if (event.keyCode == 0 && event.character == 0) return;
-	boolean result = sendKeyEvent (type, event);
-	if (type == SWT.KeyDown && (modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) {
-		if (target != null) {
-			event = new Event ();
-			event.keyCode = SWT.CAPS_LOCK;
-	//		setInputState (event, SWT.KeyUp, chord, modifiers);
-			target.sendKeyEvent (SWT.KeyUp, event);
-		}
-	}
-	display.lastModifiers = modifiers;
+	if (control == lastActive) setActiveControl (null);
 }
 
 /**
@@ -565,6 +575,19 @@ public void forceActive () {
 //	OS.SetFrontProcessWithOptions (new int [] {0, OS.kCurrentProcess}, OS.kSetFrontProcessFrontWindowOnly);
 }
 
+/**
+ * Returns the receiver's alpha value. The alpha value
+ * is between 0 (transparent) and 255 (opaque).
+ *
+ * @return the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public int getAlpha () {
 	checkWidget ();
 	return (int)(window.alphaValue() * 255);
@@ -572,8 +595,9 @@ public int getAlpha () {
 
 public Rectangle getBounds () {
 	checkWidget();
-	NSRect frame = window.frame ();
-	return new Rectangle ((int)frame.x, (int) frame.y, (int) frame.width, (int) frame.height);
+	NSRect frame = window.frame();
+	float y = display.getPrimaryFrame().height - (int)(frame.y + frame.height);
+	return new Rectangle ((int)frame.x, (int)y, (int)frame.width, (int)frame.height);
 }
 
 public Rectangle getClientArea () {
@@ -592,11 +616,20 @@ public Rectangle getClientArea () {
 	return new Rectangle (0, 0, width, height);
 }
 
-int getDrawCount (int control) {
-	if (!isTrimHandle (control)) return drawCount;
-	return 0;
-}
-
+/**
+ * Returns <code>true</code> if the receiver is currently
+ * in fullscreen state, and false otherwise. 
+ * <p>
+ *
+ * @return the fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public boolean getFullScreen () {
 	checkWidget();
 	return fullScreen;
@@ -626,8 +659,9 @@ public int getImeInputMode () {
 
 public Point getLocation () {
 	checkWidget();
-	NSRect frame = window.frame ();
-	return new Point ((int) frame.x, (int) frame.y);
+	NSRect frame = window.frame();
+	float y = display.getPrimaryFrame().height - (int)(frame.y + frame.height);
+	return new Point ((int)frame.x, (int)y);
 }
 
 public boolean getMaximized () {
@@ -820,6 +854,12 @@ public boolean print (GC gc) {
 	return false;
 }
 
+void register () {
+	super.register ();
+	if (window != null) display.addWidget (window, this);
+	if (windowDelegate != null) display.addWidget (windowDelegate, this);
+}
+
 void releaseChildren (boolean destroy) {
 	Shell [] shells = getShells ();
 	for (int i=0; i<shells.length; i++) {
@@ -832,7 +872,6 @@ void releaseChildren (boolean destroy) {
 }
 
 void releaseHandle () {
-	window.close();
 	window.setDelegate(null);
 	if (windowDelegate != null) windowDelegate.release();
 	windowDelegate = null;
@@ -848,6 +887,8 @@ void releaseWidget () {
 	super.releaseWidget ();
 //	disposed = true;
 	lastActive = null;
+	if (regionPath != null) regionPath.release();
+	regionPath = null;
 }
 
 /**
@@ -902,7 +943,6 @@ public void removeShellListener(ShellListener listener) {
 public void setActive () {
 	checkWidget ();
 	if (!isVisible ()) return;
-	window.makeKeyAndOrderFront(null);
 //	OS.SelectWindow (shellHandle);
 }
 
@@ -943,41 +983,46 @@ void setActiveControl (Control control) {
 	}
 }
 
+/**
+ * Sets the receiver's alpha value which must be
+ * between 0 (transparent) and 255 (opaque).
+ * <p>
+ * This operation requires the operating system's advanced
+ * widgets subsystem which may not be available on some
+ * platforms.
+ * </p>
+ * @param alpha the alpha value
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ * 
+ * @since 3.4
+ */
 public void setAlpha (int alpha) {
 	checkWidget ();
 	alpha &= 0xFF;
 	window.setAlphaValue (alpha / 255f);
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-//	if (fullScreen) setFullScreen (false);
-	if (move && resize) {
-		NSRect rect = new NSRect ();
-		rect.x = x;
-		//TODO - get the screen for the point
-		int screenHeight = (int) window.screen().frame().height;
-		rect.y = y;//screenHeight - y;
-		rect.width = width;
-		rect.height = height;
-		window.setFrame_display_(rect, false);
-	} else {
-		if (move) {
-			NSPoint point = new NSPoint();
-			point.x = x;
-			//TODO - get the screen for the point
-			int screenHeight = (int) window.screen().frame().height;
-			point.y = screenHeight - y;
-			window.setFrameTopLeftPoint (point);
-		} else {
-			if (resize) {
-				NSRect rect = window.frame();
-				rect.width = width;
-				rect.height = height;
-				window.setFrame_display_(rect, false);
-			}
-		}
+void setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
+	if (fullScreen) setFullScreen (false);
+	int screenHeight = (int) display.getPrimaryFrame().height;
+	NSRect frame = window.frame();
+	if (!move) {
+		x = (int)frame.x;
+		y = screenHeight - (int)(frame.y + frame.height);
 	}
-	return 0;
+	if (!resize) {
+		width = (int)frame.width;
+		height = (int)frame.height;
+	}
+	frame.x = x;
+	frame.y = screenHeight - (int)(y + height);
+	frame.width = width;
+	frame.height = height;
+	window.setFrame_display_(frame, false);
 }
 
 public void setEnabled (boolean enabled) {
@@ -989,6 +1034,29 @@ public void setEnabled (boolean enabled) {
 //	}
 }
 
+/**
+ * Sets the full screen state of the receiver.
+ * If the argument is <code>true</code> causes the receiver
+ * to switch to the full screen state, and if the argument is
+ * <code>false</code> and the receiver was previously switched
+ * into full screen state, causes the receiver to switch back
+ * to either the maximmized or normal states.
+ * <p>
+ * Note: The result of intermixing calls to <code>setFullScreen(true)</code>, 
+ * <code>setMaximized(true)</code> and <code>setMinimized(true)</code> will 
+ * vary by platform. Typically, the behavior will match the platform user's 
+ * expectations, but not always. This should be avoided if possible.
+ * </p>
+ * 
+ * @param fullScreen the new fullscreen state
+ *
+ * @exception SWTException <ul>
+ *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
+ *    <li>ERROR_THREAD_INVALID_ACCESS - if not called from the thread that created the receiver</li>
+ * </ul>
+ *
+ * @since 3.4
+ */
 public void setFullScreen (boolean fullScreen) {
 	checkWidget ();
 	this.fullScreen = fullScreen; 
@@ -1104,10 +1172,6 @@ public void setMinimized (boolean minimized) {
  */
 public void setMinimumSize (int width, int height) {
 	checkWidget();
-	NSSize size = new NSSize();
-	size.width = width;
-	size.height = height;
-	window.setMinSize(size);
 //	int clientWidth = 0, clientHeight = 0;
 //	int trim = SWT.TITLE | SWT.CLOSE | SWT.MIN | SWT.MAX;
 //	if ((style & SWT.NO_TRIM) == 0 && (style & trim) != 0) {
@@ -1175,28 +1239,49 @@ public void setRegion (Region region) {
 	checkWidget ();
 	if ((style & SWT.NO_TRIM) == 0) return;
 	if (region != null && region.isDisposed()) error (SWT.ERROR_INVALID_ARGUMENT);
-//	if (region == null) {
-//		rgnRect = null;
-//	} else {
-//		if (rgnRect == null) {
-//			rgnRect = new Rect ();
-//			OS.GetWindowBounds (shellHandle, (short) OS.kWindowStructureRgn, rgnRect);
-//			OS.SetRect (rgnRect, (short) 0, (short) 0, (short) (rgnRect.right - rgnRect.left), (short) (rgnRect.bottom - rgnRect.top));	
-//		}
-//	}
-//	this.region = region;
-//	/*
-//	* Bug in the Macintosh.  Calling ReshapeCustomWindow() from a
-//	* kEventWindowDrawContent handler originating from ShowWindow()
-//	* will deadlock.  The fix is to detected this case and only call
-//	* ReshapeCustomWindow() after the default handler is done.
-//	*/
-//	if (drawing) {
-//		reshape = true;
-//	} else {
-//		OS.ReshapeCustomWindow (shellHandle);
-//		redrawWidget (handle, true);
-//	}
+	this.region = region;
+	if (regionPath != null) regionPath.release();
+	regionPath = getPath(region);
+	if (region != null) {
+		window.setBackgroundColor(NSColor.clearColor());
+		window.setOpaque(false);
+	} else {
+		window.setBackgroundColor(NSColor.windowBackgroundColor());
+		window.setOpaque(true);
+	}
+	window.contentView().setNeedsDisplay(true);
+}
+
+NSBezierPath getPath(Region region) {
+	if (region == null) return null;
+	Callback callback = new Callback(this, "regionToRects", 4);
+	if (callback.getAddress() == 0) SWT.error(SWT.ERROR_NO_MORE_CALLBACKS);
+	NSBezierPath path = NSBezierPath.bezierPath();
+	path.retain();
+	OS.QDRegionToRects(region.handle, OS.kQDParseRegionFromTopLeft, callback.getAddress(), path.id);
+	callback.dispose();
+	if (path.isEmpty()) path.appendBezierPathWithRect(new NSRect());
+	return path;
+}
+
+int regionToRects(int message, int rgn, int r, int path) {
+	NSPoint pt = new NSPoint();
+	short[] rect = new short[4];
+	if (message == OS.kQDRegionToRectsMsgParse) {
+		OS.memmove(rect, r, rect.length * 2);
+		pt.x = rect[1];
+		pt.y = rect[0];
+		OS.objc_msgSend(path, OS.sel_moveToPoint_1, pt);
+		pt.x = rect[3];
+		OS.objc_msgSend(path, OS.sel_lineToPoint_1, pt);
+		pt.x = rect[3];
+		pt.y = rect[2];
+		OS.objc_msgSend(path, OS.sel_lineToPoint_1, pt);
+		pt.x = rect[1];
+		OS.objc_msgSend(path, OS.sel_lineToPoint_1, pt);
+		OS.objc_msgSend(path, OS.sel_closePath);
+	}
+	return 0;
 }
 
 public void setText (String string) {
@@ -1205,7 +1290,6 @@ public void setText (String string) {
 	super.setText (string);
 	NSString str = NSString.stringWith(string);
 	window.setTitle(str);
-//	str.release();
 }
 
 public void setVisible (boolean visible) {
@@ -1214,6 +1298,13 @@ public void setVisible (boolean visible) {
 }
 
 void setWindowVisible (boolean visible, boolean key) {
+	if (visible) {
+		if ((state & HIDDEN) == 0) return;
+		state &= ~HIDDEN;
+	} else {
+		if ((state & HIDDEN) != 0) return;
+		state |= HIDDEN;
+	}
 	if (window.isVisible() == visible) return;
 	if (visible) {
 		sendEvent (SWT.Show);
@@ -1245,7 +1336,7 @@ void setWindowVisible (boolean visible, boolean key) {
 }
 
 void setZOrder () {
-//	if (scrolledHandle != 0) OS.HIViewAddSubview (scrolledHandle, handle);
+	window.setContentView (topView());
 }
 
 void setZOrder (Control control, boolean above) {
@@ -1346,7 +1437,12 @@ void windowWillClose(int notification) {
 void windowSendEvent(int id, int event) {
 	NSEvent nsEvent = new NSEvent(event);
 	int type = nsEvent.type();
-	if (type == OS.NSKeyDown || type == OS.NSKeyUp) {
+	if (type == OS.NSFlagsChanged) {
+		Control eventTarget = display.getFocusControl();
+		if (eventTarget != null) {
+			eventTarget.flagsChanged(event);
+		}
+	} else if (type == OS.NSKeyDown || type == OS.NSKeyUp) {
 		Control eventTarget = display.getFocusControl();
 		if (eventTarget != null) {
 			if (type == OS.NSKeyDown) {

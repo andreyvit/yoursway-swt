@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,10 @@ import org.eclipse.swt.graphics.*;
  * <p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#link">Link snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -139,7 +143,6 @@ void createHandle () {
 	scrollWidget.initWithFrame(new NSRect ());
 	scrollWidget.setDrawsBackground(false);
 	scrollWidget.setBorderType(hasBorder() ? OS.NSBezelBorder : OS.NSNoBorder);
-	scrollWidget.setTag(jniRef);
 
 	SWTTextView widget = (SWTTextView)new SWTTextView().alloc();
 	widget.initWithFrame(new NSRect());
@@ -147,19 +150,20 @@ void createHandle () {
 	widget.setDrawsBackground(false);
 	widget.setDelegate(widget);
 	widget.setAutoresizingMask (OS.NSViewWidthSizable | OS.NSViewHeightSizable);
-	widget.setTag(jniRef);
 	widget.textContainer().setLineFragmentPadding(0);
 	
 	scrollView = scrollWidget;
 	view = widget;
-	scrollView.addSubview_(view);
-	scrollView.setDocumentView(view);
-	parent.contentView().addSubview_(scrollView);
 }
 
 void createWidget () {
 	super.createWidget ();
 	text = "";
+}
+
+void deregister () {
+	super.deregister ();
+	if (scrollView != null) display.removeWidget (scrollView);
 }
 
 String getNameText () {
@@ -181,6 +185,11 @@ String getNameText () {
 public String getText () {
 	checkWidget ();
 	return text;
+}
+
+void register () {
+	super.register ();
+	if (scrollView != null) display.addWidget (scrollView, this);
 }
 
 void releaseWidget () {
@@ -365,6 +374,10 @@ int parseMnemonics (char[] buffer, int start, int end, StringBuffer result) {
 	return mnemonic;
 }
 
+void setFont(NSFont font) {
+	((NSTextView) view).setFont_(font);
+}
+
 /**
  * Sets the receiver's text.
  * <p>
@@ -402,6 +415,11 @@ public void setText (String string) {
 		range.length = offsets[i].y - offsets[i].x + 1;
 		textStorage.addAttribute(OS.NSLinkAttributeName(), NSString.stringWith(ids[i]), range);
 	}
+}
+
+void setZOrder () {
+	super.setZOrder ();
+	if (scrollView != null) scrollView.setDocumentView (view);
 }
 
 NSView topView () {

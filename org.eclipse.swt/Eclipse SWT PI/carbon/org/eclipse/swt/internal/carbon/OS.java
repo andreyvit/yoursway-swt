@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (c) 2003, 2007 IBM Corp.
+ * Copyright (c) 2003, 2008 IBM Corp.
  * Portions Copyright (c) 1983-2002, Apple Computer, Inc.
  *
  * All rights reserved.  This program and the accompanying materials
@@ -262,6 +262,7 @@ public class OS extends C {
 	public static final int kControlSliderLiveFeedback = (1 << 0);
 	public static final int kControlSliderNonDirectional = (1 << 3);
 	public static final int kControlSliderProc = 48;
+	public static final int kControlClickableMetaPart = -4;
 	public static final int kControlStructureMetaPart = -1;
 	public static final int kControlSupportsEmbedding = 1 << 1;
 	public static final int kControlSupportsFocus = 1 << 2;
@@ -1153,6 +1154,7 @@ public static final native int CFURLCreateWithFileSystemPath (int allocator, int
 public static final native int CFURLCreateFromFileSystemRepresentation(int allocator, int buffer, int bufLen, boolean isDirectory);
 public static final native int CFURLCreateWithString(int allocator, int URLString, int baseURL);
 public static final native int CFURLCreateStringByAddingPercentEscapes(int allocator, int originalString, int charactersToLeaveUnescaped, int legalURLCharactersToBeEscaped, int encoding);
+public static final native int CFURLCreateStringByReplacingPercentEscapes(int allocator, int originalString, int charactersToLeaveUnescaped);
 public static final native boolean CFURLGetFSRef(int url, byte[] fsRef);
 public static final native void CGAffineTransformConcat (float[] t1, float[] t2, float[] result);
 public static final native void CGAffineTransformMake (float a, float b, float c, float d, float tx, float ty, float[] result);
@@ -1564,6 +1566,7 @@ public static final native int HIObjectCopyClassID(int inObject);
 public static final native int HIObjectCreate(int inClassID, int inConstructData, int[] outObject);
 public static final native int HIObjectRegisterSubclass(int inClassID, int inBaseClassID, int inOptions, int inConstructProc, int inNumEvents, int[] inEventList, int inConstructData, int[] outClassRef);
 public static final native int HIViewScrollRect(int inView, CGRect inRect, float inDX, float inDY);
+public static final native int HIViewRegionChanged(int inView, int inRegionCode);
 public static final native int HIShapeCreateWithQDRgn(int inRgn);
 public static final native int HIShapeReplacePathInCGContext(int inShape, int inContext);
 public static final native int HIScrollViewCreate(int inOptions, int[] outView);
@@ -1708,6 +1711,7 @@ public static final native int NavDialogSetSaveFileName(int dialogHandle, int fi
 public static final native int NavDialogSetFilterTypeIdentifiers(int inGetFileDialog, int inTypeIdentifiers);  
 public static final native int NavGetDefaultDialogCreationOptions(NavDialogCreationOptions outOptions);
 public static final native int NavDialogGetReply(int inDialog, NavReplyRecord outReply);
+public static final native int NavDisposeReply(NavReplyRecord reply); 
 public static final native int NewControl(int owningWindow, Rect boundsRect, byte[] controlTitle, boolean initiallyVisible, short initialValue, short minimumValue, short maximumValue, short procID, int controlReference);
 public static final native int NewDrag(int[] theDrag); 
 public static final native int NewGWorldFromPtr(int[] offscreenGWorld, int PixelFormat, Rect boundsRect, int cTable, int aGDevice, int flags, int newBuffer, int rowBytes);
@@ -2000,6 +2004,7 @@ public static final native int AXUIElementGetDataBrowserItemInfo(int inElement, 
 public static final native int AXValueCreate (int theType, CFRange range);
 public static final native boolean AXValueGetValue (int value, int theType, CFRange range);
 public static final native int HIObjectSetAccessibilityIgnored(int inObject, boolean inIgnored);
+public static final native int HIObjectSetAuxiliaryAccessibilityAttribute(int inHIObject, long inIdentifier, int inAttributeName, int inAttributeData);
 public static final native int AXUIElementCopyAttributeValue (int element, int attribute, int [] value);
 
 public static final int kEventClassAccessibility = ('a'<<24) + ('c'<<16) + ('c'<<8) + 'e';

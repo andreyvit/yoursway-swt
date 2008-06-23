@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2003, 2007 IBM Corporation and others.
+ * Copyright (c) 2003, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -151,7 +151,7 @@ class Mozilla extends WebBrowser {
 
 public void create (Composite parent, int style) {
 	delegate = new MozillaDelegate (browser);
-	Display display = parent.getDisplay ();
+	final Display display = parent.getDisplay ();
 
 	int /*long*/[] result = new int /*long*/[1];
 	if (!Initialized) {
@@ -166,7 +166,27 @@ public void create (Composite parent, int style) {
 			 */
 			Initialized = true;
 		}
+
 		String mozillaPath = System.getProperty (XULRUNNER_PATH);
+		/*
+		* Browser clients that ship XULRunner in a plug-in must have an opportunity 
+		* to set the org.eclipse.swt.browser.XULRunnerPath system property to point
+		* at their XULRunner before the first Mozilla-based Browser is created.  To
+		* facilitate this, reflection is used to reference non-existent class
+		* org.eclipse.swt.browser.XULRunnerInitializer the first time a Mozilla-
+		* based Browser is created.   A client wishing to use this hook can do so
+		* by creating a fragment of org.eclipse.swt that implements this class and
+		* sets the system property in its static initializer.
+		*/
+		if (mozillaPath == null) {
+			try {
+				Class.forName ("org.eclipse.swt.browser.XULRunnerInitializer"); //$NON-NLS-1$
+				mozillaPath = System.getProperty (XULRUNNER_PATH);
+			} catch (ClassNotFoundException e) {
+				/* no fragment is providing this class, which is the typical case */
+			}
+		}
+
 		if (mozillaPath == null) {
 			try {
 				String libName = delegate.getSWTInitLibraryName ();
@@ -954,7 +974,17 @@ public void create (Composite parent, int style) {
 				serviceManager.Release ();
 
 				if (XPCOMWasGlued) {
-					XPCOM.XPCOMGlueShutdown ();
+					/*
+					* XULRunner 1.9 can crash on Windows if XPCOMGlueShutdown is invoked here,
+					* presumably because one or more of its unloaded symbols are referenced when
+					* this callback returns.  The workaround is to delay invoking XPCOMGlueShutdown
+					* so that its symbols are still available once this callback returns.
+					*/
+					display.asyncExec (new Runnable () {
+						public void run () {
+							XPCOM.XPCOMGlueShutdown ();
+						}
+					});
 					XPCOMWasGlued = false;
 				}
 				if (XPCOMInitWasGlued) {
@@ -2631,7 +2661,7 @@ int OnShowContextMenu (int aContextFlags, int /*long*/ aEvent, int /*long*/ aNod
 	event.x = aScreenX[0];
 	event.y = aScreenY[0];
 	browser.notifyListeners (SWT.MenuDetect, event);
-	if (!event.doit) return XPCOM.NS_OK;
+	if (!event.doit || browser.isDisposed ()) return XPCOM.NS_OK;
 	Menu menu = browser.getMenu ();
 	if (menu != null && !menu.isDisposed ()) {
 		if (aScreenX[0] != event.x || aScreenY[0] != event.y) {
@@ -2886,7 +2916,7 @@ int HandleEvent (int /*long*/ event) {
 					keyEvent.stateMask = (aAltKey[0] != 0 ? SWT.ALT : 0) | (aCtrlKey[0] != 0 ? SWT.CTRL : 0) | (aShiftKey[0] != 0 ? SWT.SHIFT : 0) | (aMetaKey[0] != 0 ? SWT.COMMAND : 0);
 					keyEvent.stateMask &= ~keyCode;		/* remove current keydown if it's a state key */
 					browser.notifyListeners (keyEvent.type, keyEvent);
-					if (!keyEvent.doit) {
+					if (!keyEvent.doit || browser.isDisposed ()) {
 						domEvent.PreventDefault ();
 					}
 					break;
@@ -2918,7 +2948,7 @@ int HandleEvent (int /*long*/ event) {
 							keyEvent.keyCode = lastKeyCode;
 							keyEvent.stateMask = (aAltKey[0] != 0 ? SWT.ALT : 0) | (aCtrlKey[0] != 0? SWT.CTRL : 0) | (aShiftKey[0] != 0? SWT.SHIFT : 0) | (aMetaKey[0] != 0? SWT.COMMAND : 0);
 							browser.notifyListeners (keyEvent.type, keyEvent);
-							if (!keyEvent.doit) {
+							if (!keyEvent.doit || browser.isDisposed ()) {
 								domEvent.PreventDefault ();
 							}
 						}
@@ -2992,7 +3022,7 @@ int HandleEvent (int /*long*/ event) {
 		keyEvent.character = (char)lastCharCode;
 		keyEvent.stateMask = (aAltKey[0] != 0 ? SWT.ALT : 0) | (aCtrlKey[0] != 0 ? SWT.CTRL : 0) | (aShiftKey[0] != 0 ? SWT.SHIFT : 0) | (aMetaKey[0] != 0 ? SWT.COMMAND : 0);
 		browser.notifyListeners (keyEvent.type, keyEvent);
-		if (!keyEvent.doit) {
+		if (!keyEvent.doit || browser.isDisposed ()) {
 			domEvent.PreventDefault ();
 		}
 		return XPCOM.NS_OK;
@@ -3047,7 +3077,7 @@ int HandleEvent (int /*long*/ event) {
 			}
 		}
 		browser.notifyListeners (keyEvent.type, keyEvent);
-		if (!keyEvent.doit) {
+		if (!keyEvent.doit || browser.isDisposed ()) {
 			domEvent.PreventDefault ();
 		}
 		lastKeyCode = lastCharCode = 0;
@@ -3146,6 +3176,7 @@ int HandleEvent (int /*long*/ event) {
 	}
 
 	browser.notifyListeners (mouseEvent.type, mouseEvent);
+	if (browser.isDisposed ()) return XPCOM.NS_OK;
 	if (aDetail[0] == 2 && XPCOM.DOMEVENT_MOUSEDOWN.equals (typeString)) {
 		mouseEvent = new Event ();
 		mouseEvent.widget = browser;

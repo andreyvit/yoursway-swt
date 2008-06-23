@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,6 +11,7 @@
 package org.eclipse.swt.widgets;
 
 
+import org.eclipse.swt.internal.carbon.CFRange;
 import org.eclipse.swt.internal.carbon.OS;
 import org.eclipse.swt.internal.carbon.DataBrowserCallbacks;
 import org.eclipse.swt.internal.carbon.DataBrowserListViewColumnDesc;
@@ -37,6 +38,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#list">List snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class List extends Scrollable {
 	String [] items;
@@ -732,6 +737,33 @@ int itemDataProc (int browser, int id, int property, int itemData, int setValue)
 	return OS.noErr;
 }
 
+int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
+	int code = OS.eventNotHandledErr;
+	int [] stringRef = new int [1];
+	OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
+	int length = 0;
+	if (stringRef [0] != 0) length = OS.CFStringGetLength (stringRef [0]);
+	char [] buffer = new char [length];
+	CFRange range = new CFRange ();
+	range.length = length;
+	OS.CFStringGetCharacters (stringRef [0], range, buffer);
+	String attributeName = new String(buffer);
+	if (attributeName.equals(OS.kAXHeaderAttribute)) {
+		/*
+		* Bug in the Macintosh.  Even when the header is not visible,
+		* VoiceOver still reports each column header's role for every row.
+		* This is confusing and overly verbose.  The fix is to return
+		* "no header" when the screen reader asks for the header, by
+		* returning noErr without setting the event parameter.
+		*/
+		code = OS.noErr;
+	}
+	if (accessible != null) {
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
+	}
+	return code;
+}
+
 int kEventControlGetClickActivation (int nextHandler, int theEvent, int userData) {
 	OS.SetEventParameter (theEvent, OS.kEventParamClickActivation, OS.typeClickActivationResult, 4, new int [] {OS.kActivateAndHandleClick});
 	return OS.noErr;
@@ -1298,7 +1330,26 @@ boolean setScrollBarVisible (ScrollBar bar, boolean visible) {
 	OS.GetDataBrowserHasScrollBars (handle, horiz, vert);
 	if ((bar.style & SWT.H_SCROLL) != 0) horiz [0] = visible;
 	if ((bar.style & SWT.V_SCROLL) != 0) vert [0] = visible;
-	return OS.SetDataBrowserHasScrollBars (handle, horiz [0], vert [0]) == OS.noErr;
+	if (!visible) {
+		bar.redraw ();
+		bar.deregister ();
+	}
+	if (OS.SetDataBrowserHasScrollBars (handle, horiz [0], vert [0]) == OS.noErr) {
+		if (visible) {
+			bar.handle = findStandardBar (bar.style);
+			bar.register ();
+			bar.hookEvents ();
+			bar.redraw ();
+		} else {
+			bar.handle = 0;
+		}
+		return true;
+	} else {
+		if (!visible) {
+			bar.register ();
+		}
+	}
+	return false;
 }
 
 /**

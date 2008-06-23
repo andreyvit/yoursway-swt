@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -93,6 +93,10 @@ import org.eclipse.swt.internal.win32.*;
  *	<dt><b>Styles</b></dt> <dd>DND.DROP_NONE, DND.DROP_COPY, DND.DROP_MOVE, DND.DROP_LINK</dd>
  *	<dt><b>Events</b></dt> <dd>DND.DragStart, DND.DragSetData, DND.DragEnd</dd>
  * </dl>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#dnd">Drag and Drop snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: DNDExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class DragSource extends Widget {
 
@@ -311,10 +315,10 @@ private void drag(Event dragEvent) {
 		 * area and use it during the drag to prevent the image from being inverted.
 		 * On XP if the shell is RTL, the image is not displayed.
 		 */
-		int offset = 0;
+		int offset = event.x - dragEvent.x;
 		hwndDrag = topControl.handle;
 		if ((topControl.getStyle() & SWT.RIGHT_TO_LEFT) != 0) {
-			offset = image.getBounds().width;
+			offset = image.getBounds().width - offset;
 			RECT rect = new RECT ();
 			OS.GetClientRect (topControl.handle, rect);
 			hwndDrag = OS.CreateWindowEx (
@@ -330,7 +334,7 @@ private void drag(Event dragEvent) {
 				null);
 			OS.ShowWindow (hwndDrag, OS.SW_SHOW);
 		}
-		OS.ImageList_BeginDrag(imagelist.getHandle(), 0, offset, 0);
+		OS.ImageList_BeginDrag(imagelist.getHandle(), 0, offset, event.y - dragEvent.y);
         /*
         * Feature in Windows. When ImageList_DragEnter() is called,
         * it takes a snapshot of the screen  If a drag is started
@@ -472,6 +476,9 @@ private int GetData(int /*long*/ pFormatetc, int /*long*/ pmedium) {
  * Returns an array of listeners who will be notified when a drag and drop 
  * operation is in progress, by sending it one of the messages defined in 
  * the <code>DragSourceListener</code> interface.
+ *
+ * @return the listeners who will be notified when a drag and drop
+ * operation is in progress
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>
@@ -654,7 +661,7 @@ private int Release() {
  * Removes the listener from the collection of listeners who will
  * be notified when a drag and drop operation is in progress.
  *
- * @param listener the listener which should be notified
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>

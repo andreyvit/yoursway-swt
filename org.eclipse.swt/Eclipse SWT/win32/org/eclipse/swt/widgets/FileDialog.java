@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -30,6 +30,10 @@ import org.eclipse.swt.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ * 
+ * @see <a href="http://www.eclipse.org/swt/snippets/#filedialog">FileDialog snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample, Dialog tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class FileDialog extends Dialog {
 	String [] filterNames = new String [0];
@@ -188,7 +192,7 @@ public boolean getOverwrite () {
 	return overwrite;
 }
 
-int OFNHookProc (int /*long*/ hdlg, int /*long*/ uiMsg, int /*long*/ wParam, int /*long*/ lParam) {
+int /*long*/ OFNHookProc (int /*long*/ hdlg, int /*long*/ uiMsg, int /*long*/ wParam, int /*long*/ lParam) {
 	switch ((int)/*64*/uiMsg) {
 		case OS.WM_NOTIFY:
 			OFNOTIFY ofn = new OFNOTIFY ();
@@ -520,8 +524,10 @@ public void setFileName (String string) {
  * which may be null.
  * <p>
  * The strings are platform specific. For example, on
- * Windows, an extension filter string is typically of
- * the form "*.extension", where "*.*" matches all files.
+ * some platforms, an extension filter string is typically
+ * of the form "*.extension", where "*.*" matches all files.
+ * For filters with multiple extensions, use semicolon as
+ * a separator, e.g. "*.jpg;*.png".
  * </p>
  *
  * @param extensions the file extension filter

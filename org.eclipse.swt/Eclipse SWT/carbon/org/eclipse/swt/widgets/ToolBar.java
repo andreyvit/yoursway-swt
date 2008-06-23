@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -39,6 +39,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#toolbar">ToolBar, ToolItem snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class ToolBar extends Composite {
 	int itemCount;
@@ -315,7 +319,7 @@ void invalidateChildrenVisibleRegion (int control) {
 }
 
 int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userData) {
-	int code = OS.CallNextEventHandler (nextHandler, theEvent);
+	int code = OS.eventNotHandledErr;
 	int [] stringRef = new int [1];
 	OS.GetEventParameter (theEvent, OS.kEventParamAccessibleAttributeName, OS.typeCFStringRef, null, 4, null, stringRef);
 	int length = 0;
@@ -330,26 +334,20 @@ int kEventAccessibleGetNamedAttribute (int nextHandler, int theEvent, int userDa
 		buffer = new char [roleText.length ()];
 		roleText.getChars (0, buffer.length, buffer, 0);
 		stringRef [0] = OS.CFStringCreateWithCharacters (OS.kCFAllocatorDefault, buffer, buffer.length);
-		if (attributeName.equals (OS.kAXRoleAttribute)) {
-			if (stringRef [0] != 0) {
+		if (stringRef [0] != 0) {
+			if (attributeName.equals (OS.kAXRoleAttribute)) {
 				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, stringRef);
-				OS.CFRelease(stringRef [0]);
-				code = OS.noErr;
-			}
-		}
-		if (attributeName.equals (OS.kAXRoleDescriptionAttribute)) {
-			if (stringRef [0] != 0) {
+			} else { // kAXRoleDescriptionAttribute
 				int stringRef2 = OS.HICopyAccessibilityRoleDescription (stringRef [0], 0);
 				OS.SetEventParameter (theEvent, OS.kEventParamAccessibleAttributeValue, OS.typeCFStringRef, 4, new int [] {stringRef2});
-				OS.CFRelease(stringRef [0]);
 				OS.CFRelease(stringRef2);
-				code = OS.noErr;
 			}
+			OS.CFRelease(stringRef [0]);
+			code = OS.noErr;
 		}
 	}
 	if (accessible != null) {
-		int err = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, userData);
-		if (err != OS.eventNotHandledErr) return err;
+		code = accessible.internal_kEventAccessibleGetNamedAttribute (nextHandler, theEvent, code);
 	}
 	return code;
 }

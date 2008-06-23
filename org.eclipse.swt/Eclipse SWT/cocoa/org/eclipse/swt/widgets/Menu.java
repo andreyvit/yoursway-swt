@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -33,6 +33,10 @@ import org.eclipse.swt.graphics.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#menu">Menu snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Menu extends Widget {
 	/**
@@ -58,6 +62,11 @@ public class Menu extends Widget {
  * Constructs a new instance of this class given its parent,
  * and sets the style for the instance so that the instance
  * will be a popup menu on the given parent's shell.
+ * <p>
+ * After constructing a menu, it can be set into its parent
+ * using <code>parent.setMenu(menu)</code>.  In this case, the parent may
+ * be any control in the same widget tree as the parent.
+ * </p>
  *
  * @param parent a control which will be the parent of the new instance (cannot be null)
  *
@@ -89,6 +98,9 @@ public Menu (Control parent) {
  * of those <code>SWT</code> style constants. The class description
  * lists the style constants that are applicable to the class.
  * Style bits are also inherited from superclasses.
+ * </p><p>
+ * After constructing a menu or menuBar, it can be set into its parent
+ * using <code>parent.setMenu(menu)</code> or <code>parent.setMenuBar(menuBar)</code>.
  * </p>
  *
  * @param parent a decorations control which will be the parent of the new instance (cannot be null)
@@ -119,6 +131,10 @@ public Menu (Decorations parent, int style) {
  * (which must be a <code>Menu</code>) and sets the style
  * for the instance so that the instance will be a drop-down
  * menu on the given parent's parent.
+ * <p>
+ * After constructing a drop-down menu, it can be set into its parentMenu
+ * using <code>parentMenu.setMenu(menu)</code>.
+ * </p>
  *
  * @param parentMenu a menu which will be the parent of the new instance (cannot be null)
  *
@@ -143,6 +159,10 @@ public Menu (Menu parentMenu) {
  * (which must be a <code>MenuItem</code>) and sets the style
  * for the instance so that the instance will be a drop-down
  * menu on the given parent's parent menu.
+ * <p>
+ * After constructing a drop-down menu, it can be set into its parentItem
+ * using <code>parentItem.setMenu(menu)</code>.
+ * </p>
  *
  * @param parentItem a menu item which will be the parent of the new instance (cannot be null)
  *
@@ -257,17 +277,15 @@ public void addMenuListener (MenuListener listener) {
 }
 
 void createHandle () {
-//	display.addMenu (this);
+	display.addMenu (this);
 	SWTMenu widget = (SWTMenu)new SWTMenu().alloc();
 	widget.initWithTitle(NSString.stringWith(""));
 	widget.setAutoenablesItems(false);
-	widget.setTag(jniRef);
 	widget.setDelegate(widget);	
 	nsMenu = widget;	
 }
 
 void createItem (MenuItem item, int index) {
-	checkWidget ();
 	if (!(0 <= index && index <= itemCount)) error (SWT.ERROR_INVALID_RANGE);
 	NSMenuItem nsItem = null;
 	if ((item.style & SWT.SEPARATOR) != 0) {
@@ -278,10 +296,10 @@ void createItem (MenuItem item, int index) {
 		nsItem.initWithTitle(NSString.stringWith(""), 0, NSString.stringWith(""));
 		nsItem.setTarget(nsItem);
 		nsItem.setAction(OS.sel_sendSelection);
-		item.createJNIRef();
-		nsItem.setTag(item.jniRef);
 	}
 	item.nsItem = nsItem;
+	item.createJNIRef();
+	item.register();
 	nsMenu.insertItem(nsItem, index);
 	if (itemCount == items.length) {
 		MenuItem [] newItems = new MenuItem [items.length + 4];
@@ -301,6 +319,11 @@ void createWidget () {
 	checkOrientation (parent);
 	super.createWidget ();
 	items = new MenuItem [4];
+}
+
+void deregister () {
+	super.deregister ();
+	display.removeWidget (nsMenu);
 }
 
 void destroyItem (MenuItem item) {
@@ -625,13 +648,10 @@ public boolean isVisible () {
 }
 
 void menu_willHighlightItem(int menu, int itemID) {
-	int jniRef = OS.objc_msgSend(itemID, OS.sel_tag);
-	if (jniRef != -1 && jniRef != 0) {
-		Object object = OS.JNIGetObject(jniRef);
-		if (object instanceof MenuItem) {
-			MenuItem item = (MenuItem)object;
-			item.sendEvent (SWT.Arm);
-		}
+	Widget widget = display.getWidget(itemID);
+	if (widget instanceof MenuItem) {
+		MenuItem item = (MenuItem)widget;
+		item.sendEvent (SWT.Arm);
 	}
 }
 
@@ -671,6 +691,11 @@ int numberOfItemsInMenu(int menu) {
 	return 4;
 }
 
+void register () {
+	super.register ();
+	display.addWidget (nsMenu, this);
+}
+
 void releaseChildren (boolean destroy) {
 	if (items != null) {
 		for (int i=0; i<items.length; i++) {
@@ -699,7 +724,7 @@ void releaseParent () {
 
 void releaseWidget () {
 	super.releaseWidget ();
-//	display.removeMenu (this);
+	display.removeMenu (this);
 	parent = null;
 	cascade = defaultItem = lastTarget = null;
 }

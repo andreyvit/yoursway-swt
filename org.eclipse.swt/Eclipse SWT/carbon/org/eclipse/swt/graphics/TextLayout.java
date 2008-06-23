@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,7 +27,11 @@ import org.eclipse.swt.*;
  * when those instances are no longer required.
  * </p>
  * 
- *  @since 3.0
+ * @see <a href="http://www.eclipse.org/swt/snippets/#textlayout">TextLayout, TextStyle snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample, StyledText tab</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
+ * 
+ * @since 3.0
  */
 public final class TextLayout extends Resource {
 	
@@ -331,20 +335,12 @@ void computeRuns() {
 			hardBreaks[breakCount++] = i;
 		}
 	}
-	int offsetCount = 0;
-	for (int i = 0; i < chars.length; i++) {
-		char c = chars[i];
-		if (c == LTR_MARK || c == RTL_MARK) {
-			offsetCount++;
+	if (invalidOffsets != null) {
+		for (int i = 0; i < invalidOffsets.length; i++) {
+			invalidOffsets[i]++;
 		}
-	}
-	invalidOffsets = new int[offsetCount];
-	offsetCount = 0;
-	for (int i = 0; i < chars.length; i++) {
-		char c = chars[i];
-		if (c == LTR_MARK || c == RTL_MARK) {
-			invalidOffsets[offsetCount++] = i;
-		}
+	} else {
+		invalidOffsets = new int[0];
 	}
 
 	hardBreaks[breakCount] = chars.length;
@@ -911,13 +907,18 @@ public int getAscent () {
 }
 
 /**
- * Returns the bounds of the receiver.
+ * Returns the bounds of the receiver. The width returned is either the
+ * width of the longest line or the width set using {@link TextLayout#setWidth(int)}.
+ * To obtain the text bounds of a line use {@link TextLayout#getLineBounds(int)}.
  * 
  * @return the bounds of the receiver
  * 
  * @exception SWTException <ul>
  *    <li>ERROR_GRAPHIC_DISPOSED - if the receiver has been disposed</li>
  * </ul>
+ * 
+ * @see #setWidth(int)
+ * @see #getLineBounds(int)
  */
 public Rectangle getBounds() {
 	checkLayout();
@@ -1548,6 +1549,7 @@ String getSegmentsText() {
 	if (nSegments == 2) {
 		if (segments[0] == 0 && segments[1] == length) return text;
 	}
+	invalidOffsets = new int[nSegments];
 	char[] oldChars = new char[length];
 	text.getChars(0, length, oldChars, 0);
 	char[] newChars = new char[length + nSegments];
@@ -1555,14 +1557,21 @@ String getSegmentsText() {
 	char separator = getOrientation() == SWT.RIGHT_TO_LEFT ? RTL_MARK : LTR_MARK;
 	while (charCount < length) {
 		if (segmentCount < nSegments && charCount == segments[segmentCount]) {
+			invalidOffsets[segmentCount] = charCount + segmentCount;
 			newChars[charCount + segmentCount++] = separator;
 		} else {
 			newChars[charCount + segmentCount] = oldChars[charCount++];
 		}
 	}
 	if (segmentCount < nSegments) {
+		invalidOffsets[segmentCount] = charCount + segmentCount;
 		segments[segmentCount] = charCount;
 		newChars[charCount + segmentCount++] = separator;
+	}
+	if (segmentCount != nSegments) {
+		int[] tmp = new int [segmentCount];
+		System.arraycopy(invalidOffsets, 0, tmp, 0, segmentCount);
+		invalidOffsets = tmp;
 	}
 	return new String(newChars, 0, Math.min(charCount + segmentCount, newChars.length));
 }

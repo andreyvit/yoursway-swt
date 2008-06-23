@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -42,6 +42,7 @@ import org.eclipse.swt.events.*;
  * </p>
  *
  * @see #checkSubclass
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public abstract class Widget {
 	int style, state;
@@ -135,16 +136,23 @@ void callSuper(int id, int selector, int arg0) {
 	OS.objc_msgSendSuper(super_struct, selector, arg0);
 }
 
-boolean acceptsFirstResponder () {
-	return false;
+boolean callSuperBoolean(int id, int sel) {
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	return OS.objc_msgSendSuper(super_struct, sel) != 0;
 }
 
-boolean becomeFirstResponder () {
-	return true;
+boolean acceptsFirstResponder (int id, int sel) {
+	return callSuperBoolean(id, sel);
 }
 
-boolean resignFirstResponder () {
-	return true;
+boolean becomeFirstResponder (int id, int sel) {
+	return callSuperBoolean(id, sel);
+}
+
+boolean resignFirstResponder (int id, int sel) {
+	return callSuperBoolean(id, sel);
 }
 
 /**
@@ -167,6 +175,7 @@ boolean resignFirstResponder () {
  *
  * @see Listener
  * @see SWT
+ * @see #getListeners(int)
  * @see #removeListener(int, Listener)
  * @see #notifyListeners
  */
@@ -321,6 +330,15 @@ void createJNIRef () {
 void createWidget () {
 	createJNIRef ();
 	createHandle ();
+	register ();
+}
+	
+void deregister () {
+}
+
+void destroyJNIRef () {
+	if (jniRef != 0) OS.DeleteGlobalRef (jniRef);
+	jniRef = 0;
 }
 
 void destroyWidget () {
@@ -544,6 +562,13 @@ public int getStyle () {
 void helpRequested(int theEvent) {
 }
 
+int hitTest (int id, int sel, NSPoint point) {
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	return OS.objc_msgSendSuper(super_struct, sel, point);
+}
+
 boolean hooks (int eventType) {
 	if (eventTable == null) return false;
 	return eventTable.hooks (eventType);
@@ -589,7 +614,7 @@ public boolean isListening (int eventType) {
 	return hooks (eventType);
 }
 
-boolean isTrimHandle (int trimHandle) {
+boolean isOpaque(int id, int sel) {
 	return false;
 }
 
@@ -604,19 +629,52 @@ boolean isValidThread () {
 void flagsChanged(int event) {
 }
 
-void mouseDragged(int event) {
+void keyDown (int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
 }
 
-void mouseDown(int event) {
+void keyUp (int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
 }
 
-void rightMouseDown(int event) {
+void mouseDown(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
 }
 
-void mouseEntered(int event) {
+void mouseUp(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
 }
 
-void mouseUp(int event) {
+void rightMouseDown(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void rightMouseUp(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void otherMouseDown(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void otherMouseUp(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void mouseMoved(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void mouseDragged(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void mouseEntered(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
+void mouseExited(int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
 }
 
 int menuForEvent (int event) {
@@ -689,6 +747,7 @@ void outlineView_setObjectValue_forTableColumn_byItem(int outlineView, int objec
  * 
  * @see SWT
  * @see #addListener
+ * @see #getListeners(int)
  * @see #removeListener(int, Listener)
  */
 public void notifyListeners (int eventType, Event event) {
@@ -697,12 +756,23 @@ public void notifyListeners (int eventType, Event event) {
 	sendEvent (eventType, event);
 }
 
+void pageDown (int id, int sel, int sender) {
+	callSuper(id, sel, sender);
+}
+
+void pageUp (int id, int sel, int sender) {
+	callSuper(id, sel, sender);
+}
+
 void postEvent (int eventType) {
 	sendEvent (eventType, null, false);
 }
 
 void postEvent (int eventType, Event event) {
 	sendEvent (eventType, event, false);
+}
+
+void register () {
 }
 
 void release (boolean destroy) {
@@ -732,8 +802,7 @@ void releaseChildren (boolean destroy) {
 void releaseHandle () {
 	state |= DISPOSED;
 	display = null;
-	if (jniRef != 0) OS.DeleteGlobalRef(jniRef);
-	jniRef = 0;
+	destroyJNIRef ();
 }
 
 void releaseParent () {
@@ -741,6 +810,7 @@ void releaseParent () {
 }
 
 void releaseWidget () {
+	deregister ();
 	eventTable = null;
 	data = null;
 }
@@ -751,7 +821,7 @@ void releaseWidget () {
  * type is one of the event constants defined in class <code>SWT</code>.
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -764,6 +834,7 @@ void releaseWidget () {
  * @see Listener
  * @see SWT
  * @see #addListener
+ * @see #getListeners(int)
  * @see #notifyListeners
  */
 public void removeListener (int eventType, Listener handler) {
@@ -784,7 +855,7 @@ public void removeListener (int eventType, Listener handler) {
  * </p>
  *
  * @param eventType the type of event to listen for
- * @param listener the listener which should no longer be notified when the event occurs
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -808,7 +879,7 @@ protected void removeListener (int eventType, SWTEventListener handler) {
  * Removes the listener from the collection of listeners who will
  * be notified when the widget is disposed.
  *
- * @param listener the listener which should no longer be notified when the receiver is disposed
+ * @param listener the listener which should no longer be notified
  *
  * @exception IllegalArgumentException <ul>
  *    <li>ERROR_NULL_ARGUMENT - if the listener is null</li>
@@ -828,7 +899,14 @@ public void removeDisposeListener (DisposeListener listener) {
 	eventTable.unhook (SWT.Dispose, listener);
 }
 
+void scrollWheel (int id, int sel, int theEvent) {
+	callSuper(id, sel, theEvent);
+}
+
 void sendArrowSelection () {
+}
+
+void sendDoubleSelection() {
 }
 
 void sendEvent (Event event) {
@@ -864,34 +942,35 @@ void sendEvent (int eventType, Event event, boolean send) {
 	}
 }
 
-boolean sendKeyEvent (int type, int theEvent) {
-//	int [] length = new int [1];
-//	int status = OS.GetEventParameter (theEvent, OS.kEventParamKeyUnicodes, OS.typeUnicodeText, null, 4, length, (char[])null);
-//	if (status == OS.noErr && length [0] > 2) {
-//		int count = 0;
-//		int [] chord = new int [1];
-//		OS.GetEventParameter (theEvent, OS.kEventParamMouseChord, OS.typeUInt32, null, 4, null, chord);
-//		int [] modifiers = new int [1];
-//		OS.GetEventParameter (theEvent, OS.kEventParamKeyModifiers, OS.typeUInt32, null, 4, null, modifiers);
-//		char [] chars = new char [length [0] / 2];
-//		OS.GetEventParameter (theEvent, OS.kEventParamKeyUnicodes, OS.typeUnicodeText, null, chars.length * 2, null, chars);
-//		for (int i=0; i<chars.length; i++) {
-//			Event event = new Event ();
-//			event.character = chars [i];
-//			setInputState (event, type, chord [0], modifiers [0]);
-//			if (sendKeyEvent (type, event)) chars [count++] = chars [i];
-//		}
-//		if (count == 0) return false;
-//		if (count != chars.length - 1) {
-//			OS.SetEventParameter (theEvent, OS.kEventParamKeyUnicodes, OS.typeUnicodeText, count * 2, chars);
-//		}
-//		return true;
-//	} else {
-//		Event event = new Event ();
-//		if (!setKeyState (event, type, theEvent)) return true;
-//		return sendKeyEvent (type, event);
-//	}
-	return false;
+//TODO - missing modifier keys (see flagsChanged:)
+boolean sendKeyEvent (NSEvent nsEvent, int type) {
+	if ((state & SAFARI_EVENTS_FIX) != 0) return true;
+	int count = 0;
+	NSString keys = nsEvent.characters();
+	//TODO - check lowercase doesn't mangle char codes
+	NSString keyCodes = nsEvent.charactersIgnoringModifiers().lowercaseString();
+	char [] chars = new char [keys.length()];
+	for (int i=0; i<keys.length(); i++) {
+		Event event = new Event ();
+		int keyCode = Display.translateKey (keys.characterAtIndex (i) & 0xFFFF);
+		if (keyCode != 0) {
+			event.keyCode = keyCode;
+		} else {
+			event.character = (char) keys.characterAtIndex (i);
+			//TODO - get unshifted values for Shift+1
+			event.keyCode = keyCodes.characterAtIndex (i);
+		}
+		setInputState (event, nsEvent, type);
+		if (!setKeyState(event, type, nsEvent)) return false;
+		if (sendKeyEvent (type, event)) {
+			chars [count++] = chars [i];
+		}
+	}
+//	if (count == 0) return false;
+	if (count != keys.length () - 1) {
+//		OS.SetEventParameter (theEvent, OS.kEventParamKeyUnicodes, OS.typeUnicodeText, count * 2, chars);
+	}
+	return count == keys.length ();
 }
 
 boolean sendKeyEvent (int type, Event event) {
@@ -906,23 +985,6 @@ boolean sendKeyEvent (int type, Event event) {
 	*/
 	if (isDisposed ()) return false;
 	return event.doit;
-}
-
-boolean sendMouseEvent (int type, Event event) {
-	sendEvent (type, event);
-	// widget could be disposed at this point
-	
-	/*
-	 * It is possible (but unlikely), that application
-	 * code could have disposed the widget in the key
-	 * events.  If this happens, end the processing of
-	 * the key by returning false.
-	 */
-	if (isDisposed ()) return false;
-	return event.doit;
-}
-
-void sendDoubleSelection() {
 }
 
 void sendHorizontalSelection () {
@@ -1038,94 +1100,70 @@ public void setData (String key, Object value) {
 	}
 }
 
-boolean setInputState (Event event, int type, int chord, int modifiers) {
-//	if ((chord & 0x01) != 0) event.stateMask |= SWT.BUTTON1;
-//	if ((chord & 0x02) != 0) event.stateMask |= SWT.BUTTON3;
-//	if ((chord & 0x04) != 0) event.stateMask |= SWT.BUTTON2;
-//	if ((chord & 0x08) != 0) event.stateMask |= SWT.BUTTON4;
-//	if ((chord & 0x10) != 0) event.stateMask |= SWT.BUTTON5;
-//	
-//	if ((modifiers & OS.optionKey) != 0) event.stateMask |= SWT.ALT;
-//	if ((modifiers & OS.shiftKey) != 0) event.stateMask |= SWT.SHIFT;
-//	if ((modifiers & OS.controlKey) != 0) event.stateMask |= SWT.CONTROL;
-//	if ((modifiers & OS.cmdKey) != 0) event.stateMask |= SWT.COMMAND;
-//	switch (type) {
-//		case SWT.MouseDown:
-//		case SWT.MouseDoubleClick:
-//			if (event.button == 1) event.stateMask &= ~SWT.BUTTON1;
-//			if (event.button == 2) event.stateMask &= ~SWT.BUTTON2;
-//			if (event.button == 3)  event.stateMask &= ~SWT.BUTTON3;
-//			if (event.button == 4)  event.stateMask &= ~SWT.BUTTON4;
-//			if (event.button == 5)  event.stateMask &= ~SWT.BUTTON5;
-//			break;
-//		case SWT.MouseUp:
-//			if (event.button == 1) event.stateMask |= SWT.BUTTON1;
-//			if (event.button == 2) event.stateMask |= SWT.BUTTON2;
-//			if (event.button == 3) event.stateMask |= SWT.BUTTON3;
-//			if (event.button == 4) event.stateMask |= SWT.BUTTON4;
-//			if (event.button == 5) event.stateMask |= SWT.BUTTON5;
-//			break;
-//		case SWT.KeyDown:
-//		case SWT.Traverse: {
-//			if (event.keyCode != 0 || event.character != 0) return true;
-//			int lastModifiers = display.lastModifiers;
-//			if ((modifiers & OS.alphaLock) != 0 && (lastModifiers & OS.alphaLock) == 0) {
-//				event.keyCode = SWT.CAPS_LOCK;
-//				return true;
-//			}
-//			if ((modifiers & OS.shiftKey) != 0 && (lastModifiers & OS.shiftKey) == 0) {
-//				event.stateMask &= ~SWT.SHIFT;
-//				event.keyCode = SWT.SHIFT;
-//				return true;
-//			}
-//			if ((modifiers & OS.controlKey) != 0 && (lastModifiers & OS.controlKey) == 0) {
-//				event.stateMask &= ~SWT.CONTROL;
-//				event.keyCode = SWT.CONTROL;
-//				return true;
-//			}
-//			if ((modifiers & OS.cmdKey) != 0 && (lastModifiers & OS.cmdKey) == 0) {
-//				event.stateMask &= ~SWT.COMMAND;
-//				event.keyCode = SWT.COMMAND;
-//				return true;
-//			}	
-//			if ((modifiers & OS.optionKey) != 0 && (lastModifiers & OS.optionKey) == 0) {
-//				event.stateMask &= ~SWT.ALT;
-//				event.keyCode = SWT.ALT;
-//				return true;
-//			}
-//			break;
-//		}
-//		case SWT.KeyUp: {
-//			if (event.keyCode != 0 || event.character != 0) return true;
-//			int lastModifiers = display.lastModifiers;
-//			if ((modifiers & OS.alphaLock) == 0 && (lastModifiers & OS.alphaLock) != 0) {
-//				event.keyCode = SWT.CAPS_LOCK;
-//				return true;
-//			}
-//			if ((modifiers & OS.shiftKey) == 0 && (lastModifiers & OS.shiftKey) != 0) {
-//				event.stateMask |= SWT.SHIFT;
-//				event.keyCode = SWT.SHIFT;
-//				return true;
-//			}
-//			if ((modifiers & OS.controlKey) == 0 && (lastModifiers & OS.controlKey) != 0) {
-//				event.stateMask |= SWT.CONTROL;
-//				event.keyCode = SWT.CONTROL;
-//				return true;
-//			}
-//			if ((modifiers & OS.cmdKey) == 0 && (lastModifiers & OS.cmdKey) != 0) {
-//				event.stateMask |= SWT.COMMAND;
-//				event.keyCode = SWT.COMMAND;
-//				return true;
-//			}
-//			if ((modifiers & OS.optionKey) == 0 && (lastModifiers & OS.optionKey) != 0) {
-//				event.stateMask |= SWT.ALT;
-//				event.keyCode = SWT.ALT;
-//				return true;
-//			}
-//			break;
-//		}
-//	}
-	return true; 
+void setFrameOrigin (int id, int sel, NSPoint point) {
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	OS.objc_msgSendSuper(super_struct, sel, point);
+}
+
+void setFrameSize (int id, int sel, NSSize size) {
+	objc_super super_struct = new objc_super();
+	super_struct.receiver = id;
+	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
+	OS.objc_msgSendSuper(super_struct, sel, size);
+}
+
+boolean setInputState (Event event, NSEvent nsEvent, int type) {
+	if (nsEvent == null) return true;
+	int modifierFlags = nsEvent.modifierFlags();
+	if ((modifierFlags & OS.NSAlternateKeyMask) != 0) event.stateMask |= SWT.ALT;
+	if ((modifierFlags & OS.NSShiftKeyMask) != 0) event.stateMask |= SWT.SHIFT;
+	if ((modifierFlags & OS.NSControlKeyMask) != 0) event.stateMask |= SWT.CONTROL;
+	if ((modifierFlags & OS.NSCommandKeyMask) != 0) event.stateMask |= SWT.COMMAND;
+	//TODO multiple mouse buttons pressed
+	switch (nsEvent.type()) {
+		case OS.NSLeftMouseDragged:
+		case OS.NSRightMouseDragged:
+		case OS.NSOtherMouseDragged:
+			switch (nsEvent.buttonNumber()) {
+				case 0: event.stateMask |= SWT.BUTTON1; break;
+				case 1: event.stateMask |= SWT.BUTTON3; break;
+				case 2: event.stateMask |= SWT.BUTTON2; break;
+				case 3: event.stateMask |= SWT.BUTTON4; break;
+				case 4: event.stateMask |= SWT.BUTTON5; break;
+			}
+			break;
+	}
+	switch (type) {
+		case SWT.MouseDown:
+		case SWT.MouseDoubleClick:
+			if (event.button == 1) event.stateMask &= ~SWT.BUTTON1;
+			if (event.button == 2) event.stateMask &= ~SWT.BUTTON2;
+			if (event.button == 3) event.stateMask &= ~SWT.BUTTON3;
+			if (event.button == 4) event.stateMask &= ~SWT.BUTTON4;
+			if (event.button == 5) event.stateMask &= ~SWT.BUTTON5;
+			break;
+		case SWT.MouseUp:
+			if (event.button == 1) event.stateMask |= SWT.BUTTON1;
+			if (event.button == 2) event.stateMask |= SWT.BUTTON2;
+			if (event.button == 3) event.stateMask |= SWT.BUTTON3;
+			if (event.button == 4) event.stateMask |= SWT.BUTTON4;
+			if (event.button == 5) event.stateMask |= SWT.BUTTON5;
+			break;
+		case SWT.KeyDown:
+		case SWT.Traverse:
+			if (event.keyCode == SWT.ALT) event.stateMask &= ~SWT.ALT;
+			if (event.keyCode == SWT.SHIFT) event.stateMask &= ~SWT.SHIFT;
+			if (event.keyCode == SWT.CONTROL) event.stateMask &= ~SWT.CONTROL;
+			break;
+		case SWT.KeyUp:
+			if (event.keyCode == SWT.ALT) event.stateMask |= SWT.ALT;
+			if (event.keyCode == SWT.SHIFT) event.stateMask |= SWT.SHIFT;
+			if (event.keyCode == SWT.CONTROL) event.stateMask |= SWT.CONTROL;
+			break;
+	}		
+	return true;
 }
 
 boolean setKeyState (Event event, int type, NSEvent nsEvent) {
@@ -1273,21 +1311,6 @@ boolean windowShouldClose(int window) {
 }
 
 void windowWillClose(int notification) {
-}
-
-void scrollWheel(int notification) {
-}
-
-int drawerWillResizeContents_toSize(int drawer, NSSize size) {
-	// in fact, this proc should return NSSize. but I have no idea 
-	// not to do that with current implementation	
-	return (int) size.width;
-}
-
-void resetCursorRects() {
-}
-
-void performAction(int sender) {
 }
 
 }

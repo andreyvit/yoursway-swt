@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2006 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -21,6 +21,12 @@ import org.eclipse.swt.graphics.*;
  * user interface object that displays a string or image.
  * When SEPARATOR is specified, displays a single
  * vertical or horizontal line.
+ * <p>
+ * Shadow styles are hints and may not be honoured
+ * by the platform.  To create a separator label
+ * with the default shadow style for the platform,
+ * do not specify a shadow style.
+ * </p>
  * <dl>
  * <dt><b>Styles:</b></dt>
  * <dd>SEPARATOR, HORIZONTAL, VERTICAL</dd>
@@ -37,6 +43,10 @@ import org.eclipse.swt.graphics.*;
  * IMPORTANT: This class is intended to be subclassed <em>only</em>
  * within the SWT implementation.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#label">Label snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Label extends Control {
 	int /*long*/ frameHandle, labelHandle, imageHandle;
@@ -205,24 +215,7 @@ void createHandle (int index) {
 			OS.gtk_label_set_line_wrap_mode (labelHandle, OS.PANGO_WRAP_WORD_CHAR);
 		}
 	}
-	if ((style & SWT.LEFT) != 0) {
-		OS.gtk_misc_set_alignment (labelHandle, 0.0f, 0.0f);
-		OS.gtk_label_set_justify (labelHandle, OS.GTK_JUSTIFY_LEFT);
-		OS.gtk_misc_set_alignment (imageHandle, 0.0f, 0.5f);
-		return;
-	}
-	if ((style & SWT.CENTER) != 0) {
-		OS.gtk_misc_set_alignment (labelHandle, 0.5f, 0.0f);
-		OS.gtk_label_set_justify (labelHandle, OS.GTK_JUSTIFY_CENTER);
-		OS.gtk_misc_set_alignment (imageHandle, 0.5f, 0.5f);
-		return;
-	}
-	if ((style & SWT.RIGHT) != 0) {
-		OS.gtk_misc_set_alignment (labelHandle, 1.0f, 0.0f);
-		OS.gtk_label_set_justify (labelHandle, OS.GTK_JUSTIFY_RIGHT);
-		OS.gtk_misc_set_alignment (imageHandle, 1.0f, 0.5f);
-		return;
-	}
+	setAlignment ();
 }
 
 void createWidget (int index) {
@@ -392,7 +385,21 @@ public void setAlignment (int alignment) {
 	if ((alignment & (SWT.LEFT | SWT.RIGHT | SWT.CENTER)) == 0) return;
 	style &= ~(SWT.LEFT | SWT.RIGHT | SWT.CENTER);
 	style |= alignment & (SWT.LEFT | SWT.RIGHT | SWT.CENTER);
+	setAlignment ();
+}
+
+void setAlignment () {
 	boolean isRTL = (style & SWT.RIGHT_TO_LEFT) != 0;
+	if (text != null && text.length () != 0) {
+		if (OS.GTK_VERSION >= OS.VERSION(2, 4, 0)) {
+			int /*long*/ layout = OS.gtk_label_get_layout (labelHandle);
+			int /*long*/ linePtr = OS.pango_layout_get_line (layout, 0);
+			int resolved_dir = OS.pango_layout_line_get_resolved_dir (linePtr);
+			if (resolved_dir == OS.PANGO_DIRECTION_RTL) {
+				isRTL = !isRTL;
+			}
+		}
+	}
 	if ((style & SWT.LEFT) != 0) {
 		OS.gtk_misc_set_alignment (labelHandle, 0.0f, 0.0f);
 		OS.gtk_label_set_justify (labelHandle, isRTL ? OS.GTK_JUSTIFY_RIGHT : OS.GTK_JUSTIFY_LEFT);
@@ -485,12 +492,6 @@ void setOrientation () {
 	if ((style & SWT.RIGHT_TO_LEFT) != 0) {
 		if (labelHandle != 0) OS.gtk_widget_set_direction (labelHandle, OS.GTK_TEXT_DIR_RTL);
 		if (imageHandle != 0) OS.gtk_widget_set_direction (imageHandle, OS.GTK_TEXT_DIR_RTL);
-		if ((style & SWT.LEAD) != 0) {
-			if (labelHandle != 0) OS.gtk_label_set_justify (labelHandle, OS.GTK_JUSTIFY_RIGHT);
-		}
-		if ((style & SWT.TRAIL) != 0) {
-			if (labelHandle != 0) OS.gtk_label_set_justify (labelHandle, OS.GTK_JUSTIFY_LEFT);
-		}
 	}
 }
 
@@ -565,6 +566,7 @@ public void setText (String string) {
 	OS.gtk_label_set_text_with_mnemonic (labelHandle, buffer);
 	OS.gtk_widget_hide (imageHandle);
 	OS.gtk_widget_show (labelHandle);
+	setAlignment ();
 }
 
 void showWidget () {

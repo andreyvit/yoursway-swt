@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -32,6 +32,10 @@ import org.eclipse.swt.internal.cocoa.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#spinner">Spinner snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  * 
  * @since 3.1
  */
@@ -74,6 +78,11 @@ public class Spinner extends Composite {
  */
 public Spinner (Composite parent, int style) {
 	super (parent, checkStyle (style));
+}
+
+boolean acceptsFirstResponder(int id, int sel) {
+	if (id == view.id) return false;
+	return super.acceptsFirstResponder (id, sel);
 }
 
 /**
@@ -240,24 +249,20 @@ void createHandle () {
 	SWTView widget = (SWTView)new SWTView().alloc();
 	widget.initWithFrame(new NSRect());
 //	widget.setDrawsBackground(false);
-	widget.setTag(jniRef);
 	NSStepper buttonWidget = (NSStepper)new SWTStepper().alloc();
 	buttonWidget.initWithFrame(new NSRect());
 	buttonWidget.setValueWraps((style & SWT.WRAP) != 0);
 	buttonWidget.setTarget(buttonWidget);
 	buttonWidget.setAction(OS.sel_sendSelection);
-	buttonWidget.setTag(jniRef);
 	NSTextField textWidget = (NSTextField)new SWTTextField().alloc();
 	textWidget.initWithFrame(new NSRect());
 //	textWidget.setTarget(widget);
-	textWidget.setTag(jniRef);
 	textWidget.setEditable((style & SWT.READ_ONLY) == 0);
 	widget.addSubview_(textWidget);
 	widget.addSubview_(buttonWidget);
 	buttonView = buttonWidget;
 	textView = textWidget;
-	view = widget;	
-	parent.contentView().addSubview_(widget);
+	view = widget;
 	setSelection (0, false, true, false);
 }
 
@@ -285,9 +290,19 @@ public void cut () {
 //	}
 }
 
+void deregister () {
+	super.deregister ();
+	if (textView != null) display.removeWidget (textView);
+	if (buttonView != null) display.removeWidget (buttonView);
+}
+
 void enableWidget (boolean enabled) {
 	buttonView.setEnabled(enabled);
 	textView.setEnabled(enabled);
+}
+
+NSView focusView () {
+	return textView;
 }
 
 /**
@@ -407,16 +422,16 @@ public void paste () {
 //	setText (text, selection [0], selection [1], true);
 }
 
+void register () {
+	super.register ();
+	if (textView != null) display.addWidget (textView, this);
+	if (buttonView != null) display.addWidget (buttonView, this);
+}
+
 void releaseHandle () {
 	super.releaseHandle();
-	if (buttonView != null) {
-		buttonView.setTag(-1);
-		buttonView.release();
-	}
-	if (textView != null) {
-		textView.setTag(-1);
-		textView.release();
-	}
+	if (buttonView != null) buttonView.release();
+	if (textView != null) textView.release();
 	buttonView = null;
 	textView = null;
 }
@@ -494,25 +509,22 @@ void removeVerifyListener (VerifyListener listener) {
 	eventTable.unhook (SWT.Verify, listener);	
 }
 
-void sendSelection () {	
-	setSelection (getSelection(), false, true, true);
+void resized () {
+	super.resized ();
+	buttonView.sizeToFit();
+	NSRect buttonFrame = buttonView.bounds();
+	NSRect frame = view.frame();
+	buttonFrame.x = frame.width - buttonFrame.width;
+	buttonFrame.y = 0;
+	frame.x = 0;
+	frame.y = 0;
+	frame.width -= buttonFrame.width + GAP;
+	textView.setFrame(frame);
+	buttonView.setFrame(buttonFrame);
 }
 
-int setBounds (int x, int y, int width, int height, boolean move, boolean resize) {
-	int result = super.setBounds(x, y, width, height, move, resize);
-	if ((result & RESIZED) != 0) {
-		buttonView.sizeToFit();
-		NSRect buttonFrame = buttonView.bounds();
-		NSRect frame = view.frame();
-		buttonFrame.x = frame.width - buttonFrame.width;
-		buttonFrame.y = 0;
-		frame.x = 0;
-		frame.y = 0;
-		frame.width -= buttonFrame.width + GAP;
-		textView.setFrame(frame);
-		buttonView.setFrame(buttonFrame);
-	}
-	return result;
+void sendSelection () {	
+	setSelection (getSelection(), false, true, true);
 }
 
 /**
@@ -542,6 +554,10 @@ public void setDigits (int value) {
 //	digits = value;
 //	int pos = OS.GetControl32BitValue (buttonHandle);	
 //	setSelection (pos, false, true, false);
+}
+
+void setFont(NSFont font) {
+	textView.setFont(font);
 }
 
 /**
@@ -587,11 +603,11 @@ public void setMaximum (int value) {
 
 /**
  * Sets the minimum value that the receiver will allow.  This new
- * value will be ignored if it is negative or is not less than the receiver's
+ * value will be ignored if it is not less than the receiver's
  * current maximum value.  If the new minimum is applied then the receiver's
  * selection value will be adjusted if necessary to fall within its new range.
  *
- * @param value the new minimum, which must be nonnegative and less than the current maximum
+ * @param value the new minimum, which must be less than the current maximum
  *
  * @exception SWTException <ul>
  *    <li>ERROR_WIDGET_DISPOSED - if the receiver has been disposed</li>

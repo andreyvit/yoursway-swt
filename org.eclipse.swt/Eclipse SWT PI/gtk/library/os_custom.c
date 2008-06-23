@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2000, 2006 IBM Corporation and others. All rights reserved.
+* Copyright (c) 2000, 2008 IBM Corporation and others. All rights reserved.
 * The contents of this file are made available under the terms
 * of the GNU Lesser General Public License (LGPL) Version 2.1 that
 * accompanies this distribution (lgpl-v21.txt).  The LGPL is also
@@ -113,5 +113,30 @@ JNIEXPORT void JNICALL OS_NATIVE(_1gtk_1cell_1layout_1set_1attributes)
 fail:
 	if (arg2 && lparg2) (*env)->ReleaseByteArrayElements(env, arg2, lparg2, 0);
 	OS_NATIVE_EXIT(env, that, _1gtk_1cell_1layout_1set_1attributes_FUNC);
+}
+#endif
+
+struct _PangoLayoutLineSWT
+{
+  PangoLayout *layout;
+  gint         start_index; 
+  gint         length;      
+  GSList      *runs;
+  guint        is_paragraph_start : 1;
+  guint        resolved_dir : 3;
+};
+typedef struct _PangoLayoutLineSWT  PangoLayoutLineSWT;
+
+#ifndef NO__1pango_1layout_1line_1get_1resolved_1dir
+JNIEXPORT jint JNICALL OS_NATIVE(_1pango_1layout_1line_1get_1resolved_1dir)
+	(JNIEnv *env, jclass that, SWT_PTR arg0)
+{
+	jint rc = 0;
+	OS_NATIVE_ENTER(env, that, _1pango_1layout_1line_1get_1resolved_1dir_FUNC);
+	if (gtk_check_version(2,4,0) == NULL) {
+		rc = ((PangoLayoutLineSWT*)(arg0))->resolved_dir;
+	}
+	OS_NATIVE_EXIT(env, that, _1pango_1layout_1line_1get_1resolved_1dir_FUNC);
+	return rc;
 }
 #endif

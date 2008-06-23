@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2000, 2007 IBM Corporation and others.
+ * Copyright (c) 2000, 2008 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -68,6 +68,10 @@ import org.eclipse.swt.events.*;
  * </p><p>
  * IMPORTANT: This class is <em>not</em> intended to be subclassed.
  * </p>
+ *
+ * @see <a href="http://www.eclipse.org/swt/snippets/#tree">Tree, TreeItem, TreeColumn snippets</a>
+ * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: ControlExample</a>
+ * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
 public class Tree extends Composite {
 	TreeItem [] items;
@@ -96,6 +100,7 @@ public class Tree extends Composite {
 	static final int HEADER_EXTRA = 3;
 	static final int INCREMENT = 5;
 	static final int EXPLORER_EXTRA = 2;
+	static final int DRAG_IMAGE_SIZE = 301;
 	static final boolean EXPLORER_THEME = true;
 	static final int /*long*/ TreeProc;
 	static final TCHAR TreeClass = new TCHAR (0, OS.WC_TREEVIEW, true);
@@ -188,11 +193,14 @@ void _addListener (int eventType, Listener listener) {
 			OS.SendMessage (handle, OS.TVM_SETSCROLLTIME, 0, 0);
 			int bits = OS.GetWindowLong (handle, OS.GWL_STYLE);
 			if (eventType == SWT.MeasureItem) {
-				if (explorerTheme) {
-					int bits1 = (int)/*64*/OS.SendMessage (handle, OS.TVM_GETEXTENDEDSTYLE, 0, 0);
-					bits1 &= ~OS.TVS_EX_AUTOHSCROLL;
-					OS.SendMessage (handle, OS.TVM_SETEXTENDEDSTYLE, 0, bits1);
-				}
+				/*
+				* This code is intentionally commented.
+				*/
+//				if (explorerTheme) {
+//					int bits1 = (int)/*64*/OS.SendMessage (handle, OS.TVM_GETEXTENDEDSTYLE, 0, 0);
+//					bits1 &= ~OS.TVS_EX_AUTOHSCROLL;
+//					OS.SendMessage (handle, OS.TVM_SETEXTENDEDSTYLE, 0, bits1);
+//				}
 				bits |= OS.TVS_NOHSCROLL;
 			}
 			/*
@@ -1616,11 +1624,21 @@ boolean checkData (TreeItem item, int index, boolean redraw) {
 		event.index = index;
 		TreeItem oldItem = currentItem;
 		currentItem = item;
+		/*
+		* Bug in Windows.  If the tree scrolls during WM_NOTIFY
+		* with TVN_GETDISPINFO, pixel corruption occurs.  The fix
+		* is to detect that the top item has changed and redraw
+		* the entire tree.
+		*/
+		int /*long*/ hTopItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_FIRSTVISIBLE, 0);
 		sendEvent (SWT.SetData, event);
 		//widget could be disposed at this point
 		currentItem = oldItem;
 		if (isDisposed () || item.isDisposed ()) return false;
 		if (redraw) item.redraw ();
+		if (hTopItem != OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_FIRSTVISIBLE, 0)) {
+			OS.InvalidateRect (handle, null, true);
+		}
 	}
 	return true;
 }
@@ -1820,7 +1838,10 @@ void createHandle () {
 			explorerTheme = true;
 			OS.SetWindowTheme (handle, Display.EXPLORER, null);
 			int bits = OS.TVS_EX_DOUBLEBUFFER | OS.TVS_EX_FADEINOUTEXPANDOS | OS.TVS_EX_RICHTOOLTIP;
-			if ((style & SWT.FULL_SELECTION) == 0) bits |= OS.TVS_EX_AUTOHSCROLL;
+			/*
+			* This code is intentionally commented.
+			*/
+//			if ((style & SWT.FULL_SELECTION) == 0) bits |= OS.TVS_EX_AUTOHSCROLL;
 			OS.SendMessage (handle, OS.TVM_SETEXTENDEDSTYLE, 0, bits);
 			/*
 			* Bug in Windows.  When the tree is using the explorer
@@ -2914,7 +2935,7 @@ int /*long*/ getBottomItem () {
 	int /*long*/ hItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_FIRSTVISIBLE, 0);
 	if (hItem == 0) return 0;
 	int index = 0, count = (int)/*64*/OS.SendMessage (handle, OS.TVM_GETVISIBLECOUNT, 0, 0);
-	while (index < count) {
+	while (index <= count) {
 		int /*long*/ hNextItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_NEXTVISIBLE, hItem);
 		if (hNextItem == 0) return hItem;
 		hItem = hNextItem;
@@ -3784,7 +3805,7 @@ void redrawSelection () {
 			}
 			RECT rect = new RECT ();
 			int index = 0, count = (int)/*64*/OS.SendMessage (handle, OS.TVM_GETVISIBLECOUNT, 0, 0);
-			while (index < count && hItem != 0) {
+			while (index <= count && hItem != 0) {
 				int state = 0;
 				if (OS.IsWinCE) {
 					tvItem.hItem = hItem;
@@ -5687,8 +5708,6 @@ int /*long*/ windowProc (int /*long*/ hwnd, int msg, int /*long*/ wParam, int /*
 		return callWindowProc (hwnd, msg, wParam, lParam);
 	}
 	if (msg == Display.DI_GETDRAGIMAGE) {
-		//TEMPORARY CODE
-		if (hooks (SWT.EraseItem) || hooks (SWT.PaintItem)) return 0;
 		/*
 		* When there is more than one item selected, DI_GETDRAGIMAGE
 		* returns the item under the cursor.  This happens because
@@ -5696,8 +5715,87 @@ int /*long*/ windowProc (int /*long*/ hwnd, int msg, int /*long*/ wParam, int /*
 		* is to disable DI_GETDRAGIMAGE when more than one item is
 		* selected.
 		*/
-		if ((style & SWT.MULTI) != 0) {
-			if (getSelectionCount () != 1) return 0;
+		if ((style & SWT.MULTI) != 0 || hooks (SWT.EraseItem) || hooks (SWT.PaintItem)) {
+			int /*long*/ hItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_FIRSTVISIBLE, 0);
+			TreeItem [] items = new TreeItem [10];
+			TVITEM tvItem = new TVITEM ();
+			tvItem.mask = OS.TVIF_HANDLE | OS.TVIF_PARAM | OS.TVIF_STATE;
+			int count = getSelection (hItem, tvItem, items, 0, 10, false, true);
+			if (count == 0) return 0;
+			POINT mousePos = new POINT ();
+			OS.POINTSTOPOINT (mousePos, OS.GetMessagePos ());
+			OS.MapWindowPoints (0, handle, mousePos, 1);
+			RECT clientRect = new RECT ();
+			OS.GetClientRect(handle, clientRect);
+			RECT rect = items [0].getBounds (0, true, true, false);
+			if ((style & SWT.FULL_SELECTION) != 0) {
+				int width = DRAG_IMAGE_SIZE;
+				rect.left = Math.max (clientRect.left, mousePos.x - width / 2);
+				if (clientRect.right > rect.left + width) {
+					rect.right = rect.left + width;
+				} else {
+					rect.right = clientRect.right;
+					rect.left = Math.max (clientRect.left, rect.right - width);
+				}
+			}
+			int /*long*/ hRgn = OS.CreateRectRgn (rect.left, rect.top, rect.right, rect.bottom);
+			for (int i = 1; i < count; i++) {
+				if (rect.bottom - rect.top > DRAG_IMAGE_SIZE) break;
+				if (rect.bottom > clientRect.bottom) break;
+				RECT itemRect = items[i].getBounds (0, true, true, false);
+				if ((style & SWT.FULL_SELECTION) != 0) {
+					itemRect.left = rect.left;
+					itemRect.right = rect.right;
+				}
+				int /*long*/ rectRgn = OS.CreateRectRgn (itemRect.left, itemRect.top, itemRect.right, itemRect.bottom);
+				OS.CombineRgn (hRgn, hRgn, rectRgn, OS.RGN_OR);
+				OS.DeleteObject (rectRgn);
+				rect.bottom = itemRect.bottom;
+				
+			}
+			OS.GetRgnBox (hRgn, rect);
+			
+			/* Create resources */
+			int /*long*/ hdc = OS.GetDC (handle);
+			int /*long*/ memHdc = OS.CreateCompatibleDC (hdc);
+			BITMAPINFOHEADER bmiHeader = new BITMAPINFOHEADER ();
+			bmiHeader.biSize = BITMAPINFOHEADER.sizeof;
+			bmiHeader.biWidth = rect.right - rect.left;
+			bmiHeader.biHeight = -(rect.bottom - rect.top);
+			bmiHeader.biPlanes = 1;
+			bmiHeader.biBitCount = 32;
+			bmiHeader.biCompression = OS.BI_RGB;
+			byte []	bmi = new byte [BITMAPINFOHEADER.sizeof];
+			OS.MoveMemory (bmi, bmiHeader, BITMAPINFOHEADER.sizeof);
+			int /*long*/ [] pBits = new int /*long*/ [1];
+			int /*long*/ memDib = OS.CreateDIBSection (0, bmi, OS.DIB_RGB_COLORS, pBits, 0, 0);
+			if (memDib == 0) SWT.error (SWT.ERROR_NO_HANDLES);
+			int /*long*/ oldMemBitmap = OS.SelectObject (memHdc, memDib);
+			int colorKey = 0x0000FD;
+			POINT pt = new POINT ();
+			OS.SetWindowOrgEx (memHdc, rect.left, rect.top, pt);
+			OS.FillRect (memHdc, rect, findBrush (colorKey, OS.BS_SOLID));
+			OS.OffsetRgn (hRgn, -rect.left, -rect.top);
+			OS.SelectClipRgn (memHdc, hRgn);
+			OS.PrintWindow (handle, memHdc, 0);
+			OS.SetWindowOrgEx (memHdc, pt.x, pt.y, null);
+			OS.SelectObject (memHdc, oldMemBitmap);
+			OS.DeleteDC (memHdc);
+			OS.ReleaseDC (0, hdc);
+			OS.DeleteObject (hRgn);
+
+			SHDRAGIMAGE shdi = new SHDRAGIMAGE ();
+			shdi.hbmpDragImage = memDib;
+			shdi.crColorKey = colorKey;
+			shdi.sizeDragImage.cx = bmiHeader.biWidth;
+			shdi.sizeDragImage.cy = -bmiHeader.biHeight;
+			shdi.ptOffset.x = mousePos.x - rect.left;
+			shdi.ptOffset.y = mousePos.y - rect.top;
+			if ((style & SWT.MIRRORED) != 0) {
+				shdi.ptOffset.x = shdi.sizeDragImage.cx - shdi.ptOffset.x; 
+			}
+			OS.MoveMemory (lParam, shdi, SHDRAGIMAGE.sizeof);
+			return 1;
 		}
 	}
 	return super.windowProc (hwnd, msg, wParam, lParam);
@@ -6159,6 +6257,9 @@ LRESULT WM_LBUTTONDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 		dragStarted = gestureCompleted = false;
 		if (fixSelection) ignoreDeselect = ignoreSelect = lockSelection = true;
 		int /*long*/ code = callWindowProc (handle, OS.WM_LBUTTONDOWN, wParam, lParam);
+		if (!OS.IsWinCE && OS.WIN32_VERSION >= OS.VERSION (6, 0)) {
+			if (OS.GetFocus () != handle) OS.SetFocus (handle);
+		}
 		if (fixSelection) ignoreDeselect = ignoreSelect = lockSelection = false;
 		int /*long*/ hNewSelection = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_CARET, 0);
 		if (hOldSelection != hNewSelection) hAnchor = hNewSelection;
@@ -6277,6 +6378,9 @@ LRESULT WM_LBUTTONDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 				return LRESULT.ZERO;
 			}
 			int /*long*/ code = callWindowProc (handle, OS.WM_LBUTTONDOWN, wParam, lParam);
+			if (!OS.IsWinCE && OS.WIN32_VERSION >= OS.VERSION (6, 0)) {
+				if (OS.GetFocus () != handle) OS.SetFocus (handle);
+			}
 			if (!display.captureChanged && !isDisposed ()) {
 				if (OS.GetCapture () != handle) OS.SetCapture (handle);
 			}
@@ -6350,6 +6454,9 @@ LRESULT WM_LBUTTONDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 	dragStarted = gestureCompleted = false;
 	ignoreDeselect = ignoreSelect = true;
 	int /*long*/ code = callWindowProc (handle, OS.WM_LBUTTONDOWN, wParam, lParam);
+	if (!OS.IsWinCE && OS.WIN32_VERSION >= OS.VERSION (6, 0)) {
+		if (OS.GetFocus () != handle) OS.SetFocus (handle);
+	}
 	int /*long*/ hNewItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_CARET, 0);
 	if (fakeSelection) {
 		if (hOldItem == 0 || (hNewItem == hOldItem && lpht.hItem != hOldItem)) {
@@ -6573,7 +6680,7 @@ LRESULT WM_RBUTTONDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 	* This code is intentionally commented.
 	*/
 //	if (OS.GetCapture () != handle) OS.SetCapture (handle);
-	setFocus ();
+	if (OS.GetFocus () != handle) OS.SetFocus (handle);
 	
 	/*
 	* Feature in Windows.  When the user selects a tree item
