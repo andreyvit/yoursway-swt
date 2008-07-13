@@ -587,12 +587,12 @@ public void setGrayed(boolean grayed) {
  */
 public void setImage (Image image) {
 	checkWidget();
-	if ((style & SWT.ARROW) != 0) return;
 	if (image != null && image.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+	if ((style & SWT.ARROW) != 0) return;
 	this.image = image;
-	((NSButton)view).setImage(image.handle);
+	((NSButton)view).setImage(image != null ? image.handle : null);
 }
 
 boolean setRadioSelection (boolean value){
@@ -671,6 +671,7 @@ public void setText (String string) {
 
 int traversalCode (int key, NSEvent theEvent) {
 	int code = super.traversalCode (key, theEvent);
+	if ((style & SWT.ARROW) != 0) code &= ~(SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS);
 	if ((style & SWT.RADIO) != 0) code |= SWT.TRAVERSE_ARROW_NEXT | SWT.TRAVERSE_ARROW_PREVIOUS;
 	return code;
 }

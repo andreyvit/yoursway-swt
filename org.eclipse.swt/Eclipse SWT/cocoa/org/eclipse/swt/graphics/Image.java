@@ -678,6 +678,7 @@ public static Image cocoa_new(Device device, int type, NSImage nsImage) {
 	image.type = type;
 	image.handle = nsImage;
 	NSImageRep rep = nsImage.bestRepresentationForDevice(null);
+	rep.retain();
 	if (rep.isKindOfClass(NSBitmapImageRep.static_class())) { 
 		image.imageRep = new NSBitmapImageRep(rep.id);
 	}
@@ -846,7 +847,6 @@ public int internal_new_GC (GCData data) {
 	if (type != SWT.BITMAP || memGC != null) {
 		SWT.error(SWT.ERROR_INVALID_ARGUMENT);
 	}
-	NSGraphicsContext current = NSGraphicsContext.currentContext();
 	NSBitmapImageRep rep = imageRep;
 	if (imageRep.hasAlpha()) {
 		int bpr = width * 4;
@@ -859,6 +859,7 @@ public int internal_new_GC (GCData data) {
 				data.bitmapDataAddress, width, height, 8, 3, false, false, new NSString(OS.NSDeviceRGBColorSpace()), OS.NSAlphaFirstBitmapFormat , bpr, 32);
 		rep.autorelease();
 	}
+	handle.setCacheMode(OS.NSImageCacheNever);
 	NSGraphicsContext context = NSGraphicsContext.graphicsContextWithBitmapImageRep(rep);
 	NSGraphicsContext.setCurrentContext(context);
 	NSAffineTransform transform = NSAffineTransform.transform();
@@ -877,7 +878,6 @@ public int internal_new_GC (GCData data) {
 		data.font = device.systemFont;
 		data.image = this;
 	}
-	NSGraphicsContext.setCurrentContext(current);
 	return context.id;
 }
 
@@ -897,6 +897,7 @@ public int internal_new_GC (GCData data) {
 public void internal_dispose_GC (int context, GCData data) {
 	if (data.bitmapDataAddress != 0) OS.free(data.bitmapDataAddress);
 	data.bitmapDataAddress = 0;
+//	handle.setCacheMode(OS.NSImageCacheDefault);
 }
 
 /**

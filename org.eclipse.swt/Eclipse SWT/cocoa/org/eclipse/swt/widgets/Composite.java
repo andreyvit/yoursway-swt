@@ -228,7 +228,7 @@ void createHandle () {
 	state |= CANVAS;
 	NSRect rect = new NSRect();
 	if ((style & (SWT.V_SCROLL | SWT.H_SCROLL)) != 0 || hasBorder ()) {
-		SWTScrollView scrollWidget = (SWTScrollView)new SWTScrollView().alloc();
+		NSScrollView scrollWidget = (NSScrollView)new SWTScrollView().alloc();
 		scrollWidget.initWithFrame (rect);
 		scrollWidget.setDrawsBackground(false);
 		if ((style & SWT.H_SCROLL) != 0) scrollWidget.setHasHorizontalScroller(true);
@@ -237,7 +237,7 @@ void createHandle () {
 		scrollView = scrollWidget;
 		rect.width = rect.height = 100000;
 	}
-	SWTView widget = (SWTView)new SWTView().alloc();
+	NSView widget = (NSView)new SWTView().alloc();
 	widget.initWithFrame (rect);
 //	widget.setFocusRingType(OS.NSFocusRingTypeExterior);
 	view = widget;
@@ -475,12 +475,13 @@ boolean isTabGroup () {
 	return super.isTabGroup ();
 }
 
-void keyDown(int id, int sel, int theEvent) {
-	/* needed to avoid bells */
-	if (hasFocus () && (state & CANVAS) != 0) {
+void keyDown (int id, int sel, int theEvent) {
+	if ((state & CANVAS) != 0) {
+		NSArray array = NSArray.arrayWithObject (new NSEvent (theEvent));
+		view.interpretKeyEvents (array);
 		return;
 	}
-	super.keyDown(id, sel, theEvent);
+	super.keyDown (id, sel, theEvent);
 }
 
 /**

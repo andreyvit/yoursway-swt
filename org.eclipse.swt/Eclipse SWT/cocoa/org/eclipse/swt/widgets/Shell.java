@@ -469,11 +469,10 @@ void createHandle () {
 	if (window != null) {
 		view = window.contentView();
 	} else {
-		SWTWindow swtWindow = (SWTWindow) new SWTWindow ().alloc ();
-		window = (NSWindow)swtWindow;
+		window = (NSWindow) new SWTWindow ().alloc ();
 		int styleMask = OS.NSBorderlessWindowMask;
 		if ((style & SWT.NO_TRIM) == 0) {
-			styleMask = OS.NSTitledWindowMask;
+			if ((style & SWT.TITLE) != 0) styleMask |= OS.NSTitledWindowMask;
 			if ((style & SWT.CLOSE) != 0) styleMask |= OS.NSClosableWindowMask;
 			if ((style & SWT.MIN) != 0) styleMask |= OS.NSMiniaturizableWindowMask;
 			if ((style & SWT.MAX) != 0) styleMask |= OS.NSResizableWindowMask;
@@ -484,6 +483,9 @@ void createHandle () {
 		if (parent != null) screen = parent.getShell().window.screen();
 		if (screen == null) screen = primaryScreen;
 		window = window.initWithContentRect_styleMask_backing_defer_screen_(new NSRect(), styleMask, OS.NSBackingStoreBuffered, false, screen);
+		if ((style & (SWT.NO_TRIM | SWT.BORDER | SWT.SHELL_TRIM)) == 0) {
+			window.setHasShadow (true);
+		}
 		display.cascadeWindow(window, screen);
 		NSRect screenFrame = screen.frame();
 		float width = screenFrame.width * 5 / 8, height = screenFrame.height * 5 / 8;;
@@ -501,6 +503,11 @@ void createHandle () {
 	window.setAcceptsMouseMovedEvents(true);
 	windowDelegate = (SWTWindowDelegate)new SWTWindowDelegate().alloc().init();
 	window.setDelegate(windowDelegate);
+	
+	id id = window.fieldEditor (true, null);
+	if (id != null) {
+		OS.object_setClass (id.id, OS.objc_getClass ("SWTEditorView"));
+	}
 }
 
 void deregister () {
@@ -1336,7 +1343,8 @@ void setWindowVisible (boolean visible, boolean key) {
 }
 
 void setZOrder () {
-	window.setContentView (topView());
+	if (scrollView != null) scrollView.setDocumentView (view);
+	window.setContentView (scrollView != null ? scrollView : view);
 }
 
 void setZOrder (Control control, boolean above) {
@@ -1432,30 +1440,6 @@ boolean windowShouldClose(int window) {
 }
 
 void windowWillClose(int notification) {
-}
-
-void windowSendEvent(int id, int event) {
-	NSEvent nsEvent = new NSEvent(event);
-	int type = nsEvent.type();
-	if (type == OS.NSFlagsChanged) {
-		Control eventTarget = display.getFocusControl();
-		if (eventTarget != null) {
-			eventTarget.flagsChanged(event);
-		}
-	} else if (type == OS.NSKeyDown || type == OS.NSKeyUp) {
-		Control eventTarget = display.getFocusControl();
-		if (eventTarget != null) {
-			if (type == OS.NSKeyDown) {
-				boolean[] consume = new boolean[1];
-				int key = nsEvent.keyCode();
-				if (eventTarget.translateTraversal(key, nsEvent, consume)) return;
-				if (consume[0]) return;
-				if (eventTarget.isDisposed()) return;
-			}
-			if (!eventTarget.sendKeyEvent(nsEvent, type == OS.NSKeyDown ? SWT.KeyDown : SWT.KeyUp)) return;
-		}
-	}
-	super.windowSendEvent(id, event);
 }
 
 }

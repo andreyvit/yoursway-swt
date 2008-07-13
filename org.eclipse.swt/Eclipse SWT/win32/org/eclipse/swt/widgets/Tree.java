@@ -3279,7 +3279,8 @@ TreeItem [] getItems (int /*long*/ hTreeItem) {
 
 /**
  * Returns <code>true</code> if the receiver's lines are visible,
- * and <code>false</code> otherwise.
+ * and <code>false</code> otherwise. Note that some platforms draw 
+ * grid lines while others may draw alternating row colors.
  * <p>
  * If one of the receiver's ancestors is not visible or some
  * other condition makes the receiver not visible, this method
@@ -4146,7 +4147,8 @@ void setItemCount (int count, int /*long*/ hParent, int /*long*/ hItem) {
 
 /**
  * Marks the receiver's lines as visible if the argument is <code>true</code>,
- * and marks it invisible otherwise. 
+ * and marks it invisible otherwise. Note that some platforms draw 
+ * grid lines while others may draw alternating row colors.
  * <p>
  * If one of the receiver's ancestors is not visible or some
  * other condition makes the receiver not visible, marking
@@ -5962,6 +5964,7 @@ LRESULT WM_KEYDOWN (int /*long*/ wParam, int /*long*/ lParam) {
 		case OS.VK_HOME:
 		case OS.VK_END: {
 			OS.SendMessage (handle, OS.WM_CHANGEUISTATE, OS.UIS_INITIALIZE, 0);
+			if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 			if ((style & SWT.SINGLE) != 0) break;
 			if (OS.GetKeyState (OS.VK_SHIFT) < 0) {
 				int /*long*/ hItem = OS.SendMessage (handle, OS.TVM_GETNEXTITEM, OS.TVGN_CARET, 0);
@@ -6654,7 +6657,14 @@ LRESULT WM_MOUSEMOVE (int /*long*/ wParam, int /*long*/ lParam) {
 	return result;
 }
 
+LRESULT WM_MOUSEWHEEL (int /*long*/ wParam, int /*long*/ lParam) {
+	LRESULT result = super.WM_MOUSEWHEEL (wParam, lParam);
+	if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
+	return result;
+}
+
 LRESULT WM_MOVE (int /*long*/ wParam, int /*long*/ lParam) {
+	if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 	if (ignoreResize) return null;
 	return super.WM_MOVE (wParam, lParam);
 }
@@ -6871,10 +6881,12 @@ LRESULT WM_SETFONT (int /*long*/ wParam, int /*long*/ lParam) {
 		OS.SendMessage (hwndHeader, OS.WM_SETFONT, wParam, lParam);
 	}
 	if (itemToolTipHandle != 0) {
+		OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 		OS.SendMessage (itemToolTipHandle, OS.WM_SETFONT, wParam, lParam);
 	}
 	if (headerToolTipHandle != 0) {
 		OS.SendMessage (headerToolTipHandle, OS.WM_SETFONT, wParam, lParam);
+		updateHeaderToolTips ();
 	}
 	return result;
 }
@@ -6882,6 +6894,7 @@ LRESULT WM_SETFONT (int /*long*/ wParam, int /*long*/ lParam) {
 LRESULT WM_SETREDRAW (int /*long*/ wParam, int /*long*/ lParam) {
 	LRESULT result = super.WM_SETREDRAW (wParam, lParam);
 	if (result != null) return result;
+	if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 	/*
 	* Bug in Windows.  Under certain circumstances, when
 	* WM_SETREDRAW is used to turn off drawing and then
@@ -6901,6 +6914,7 @@ LRESULT WM_SETREDRAW (int /*long*/ wParam, int /*long*/ lParam) {
 }
 
 LRESULT WM_SIZE (int /*long*/ wParam, int /*long*/ lParam) {
+	if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 	/*
 	* Bug in Windows.  When TVS_NOHSCROLL is set when the
 	* size of the tree is zero, the scroll bar is shown the
@@ -7270,6 +7284,7 @@ LRESULT wmNotifyChild (NMHDR hdr, int /*long*/ wParam, int /*long*/ lParam) {
 		}
 		case OS.TVN_ITEMEXPANDINGA:
 		case OS.TVN_ITEMEXPANDINGW: {
+			if (itemToolTipHandle != 0) OS.ShowWindow (itemToolTipHandle, OS.SW_HIDE);
 			boolean runExpanded = false;
 			if ((style & SWT.VIRTUAL) != 0) style &= ~SWT.DOUBLE_BUFFERED;
 			if (hooks (SWT.EraseItem) || hooks (SWT.PaintItem)) style &= ~SWT.DOUBLE_BUFFERED;

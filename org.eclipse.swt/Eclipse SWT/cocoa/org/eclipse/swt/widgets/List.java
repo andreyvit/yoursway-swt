@@ -206,7 +206,7 @@ public Point computeSize (int wHint, int hHint, boolean changed) {
 }
 
 void createHandle () {
-	SWTScrollView scrollWidget = (SWTScrollView)new SWTScrollView().alloc();
+	NSScrollView scrollWidget = (NSScrollView)new SWTScrollView().alloc();
 	scrollWidget.initWithFrame(new NSRect ());
 	if ((style & SWT.H_SCROLL) != 0) scrollWidget.setHasHorizontalScroller(true);
 	if ((style & SWT.V_SCROLL) != 0) scrollWidget.setHasVerticalScroller(true);
@@ -286,14 +286,12 @@ public void deselect (int start, int end) {
 	if (end < 0 || start >= itemCount) return;
 	start = Math.max (0, start);
 	end = Math.min (itemCount - 1, end);
-	int length = end - start + 1;
-	if (length <= 0) return;
 	if (start == 0 && end == itemCount - 1) {
 		deselectAll ();
 	} else {
 		NSTableView widget = (NSTableView)view;
 		ignoreSelect = true;
-		for (int i=0; i<length; i++) {
+		for (int i=start; i<=end; i++) {
 			widget.deselectRow (i);
 		}
 		ignoreSelect = false;
@@ -519,8 +517,15 @@ public int getSelectionCount () {
  */
 public int getSelectionIndex () {
 	checkWidget();
-	//TODO - check empty selection case
-	return ((NSTableView)view).selectedRow();
+	NSTableView widget = (NSTableView)view;
+	if (widget.numberOfSelectedRows() == 0) {
+		return -1;
+	}
+	NSIndexSet selection = widget.selectedRowIndexes();
+	int count = selection.count();
+	int [] result = new int [count];
+	selection.getIndexes(result, count, 0);
+	return result [0];
 }
 
 /**
@@ -833,7 +838,7 @@ public void select (int index) {
 		indexes.initWithIndex(index);
 		NSTableView widget = (NSTableView)view;
 		ignoreSelect = true;
-		((NSTableView)view).selectRowIndexes(indexes, true);
+		widget.selectRowIndexes(indexes, (style & SWT.MULTI) != 0);
 		ignoreSelect = false;
 	}
 }
@@ -877,7 +882,7 @@ public void select (int start, int end) {
 		indexes.initWithIndexesInRange(range);
 		NSTableView widget = (NSTableView)view;
 		ignoreSelect = true;
-		widget.selectRowIndexes(indexes, true);
+		widget.selectRowIndexes(indexes, (style & SWT.MULTI) != 0);
 		ignoreSelect = false;
 	}
 }
@@ -912,7 +917,7 @@ public void select (int [] indices) {
 	int count = 0;
 	NSMutableIndexSet indexes = (NSMutableIndexSet)new NSMutableIndexSet().alloc().init();
 	for (int i=0; i<length; i++) {
-		int index = indices [length - i - 1];
+		int index = indices [i];
 		if (index >= 0 && index < itemCount) {
 			indexes.addIndex (indices [i]);
 			count++;
@@ -921,7 +926,7 @@ public void select (int [] indices) {
 	if (count > 0) {
 		NSTableView widget = (NSTableView)view;
 		ignoreSelect = true;
-		widget.selectRowIndexes(indexes, true);
+		widget.selectRowIndexes(indexes, (style & SWT.MULTI) != 0);
 		ignoreSelect = false;
 	}
 }

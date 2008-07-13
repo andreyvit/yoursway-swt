@@ -644,6 +644,21 @@ void destroyWidget () {
 	releaseHandle ();
 }
 
+boolean doCommandBySelector (int id, int sel, int selector) {
+	NSEvent nsEvent = NSApplication.sharedApplication ().currentEvent ();
+	if (nsEvent != null && nsEvent.type () == OS.NSKeyDown) {
+		boolean [] consume = new boolean [1];
+		if (translateTraversal (nsEvent.keyCode (), nsEvent, consume)) return false;
+		if (isDisposed ()) return false;
+		if (!sendKeyEvent (nsEvent, SWT.KeyDown)) return false;
+		if (consume [0]) return false;
+	}
+	if ((state & CANVAS) == 0) {
+		return super.doCommandBySelector (id, sel, selector);
+	}
+	return true;
+}
+
 /**
  * Detects a drag and drop gesture.  This method is used
  * to detect a drag gesture when called from within a mouse
@@ -839,36 +854,37 @@ void fixFocus (Control focusControl) {
 //	OS.ClearKeyboardFocus (window);
 }
 
-void flagsChanged(int theEvent) {
-	Display display = this.display;
-	NSEvent nsEvent = new NSEvent(theEvent);
-	int modifiers = nsEvent.modifierFlags();
-	int lastModifiers = display.lastModifiers;
-//	int chord = OS.GetCurrentEventButtonState ();
-	int type = SWT.KeyUp;	
-	if ((modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSAlternateKeyMask) != 0 && (lastModifiers & OS.NSAlternateKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSShiftKeyMask) != 0 && (lastModifiers & OS.NSShiftKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSControlKeyMask) != 0 && (lastModifiers & OS.NSControlKeyMask) == 0) type = SWT.KeyDown;
-	if ((modifiers & OS.NSCommandKeyMask) != 0 && (lastModifiers & OS.NSCommandKeyMask) == 0) type = SWT.KeyDown;
-	if (type == SWT.KeyUp && (modifiers & OS.NSAlphaShiftKeyMask) == 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) != 0) {
-		Event event = new Event ();
-		event.keyCode = SWT.CAPS_LOCK;
-		setInputState(event, nsEvent, type);
-		sendKeyEvent (SWT.KeyDown, event);
+void flagsChanged (int id, int sel, int theEvent) {
+	if (view.window ().firstResponder ().id == id) {
+		if ((state & SAFARI_EVENTS_FIX) == 0) {
+			int mask = 0;
+			NSEvent nsEvent = new NSEvent (theEvent);
+			int modifiers = nsEvent.modifierFlags ();
+			int keyCode = Display.translateKey (nsEvent.keyCode ());
+			switch (keyCode) {
+				case SWT.ALT: mask = OS.NSAlternateKeyMask; break;
+				case SWT.CONTROL: mask = OS.NSControlKeyMask; break;
+				case SWT.COMMAND: mask = OS.NSCommandKeyMask; break;
+				case SWT.SHIFT: mask = OS.NSShiftKeyMask; break;
+				case SWT.CAPS_LOCK:
+					Event event = new Event();
+					event.keyCode = keyCode;
+					setInputState (event, nsEvent, SWT.KeyDown);
+					sendKeyEvent (SWT.KeyDown, event);
+					setInputState (event, nsEvent, SWT.KeyUp);
+					sendKeyEvent (SWT.KeyUp, event);
+					break;
+			}
+			if (mask != 0) {
+				int type = (mask & modifiers) != 0 ? SWT.KeyDown : SWT.KeyUp;
+				Event event = new Event();
+				event.keyCode = keyCode;
+				setInputState (event, nsEvent, type);
+				if (!sendKeyEvent (type, event)) return;
+			}
+		}
 	}
-	Event event = new Event ();
-	event.keyCode = Display.translateKey(nsEvent.keyCode());
-	setInputState(event, nsEvent, type);
-	if (event.keyCode == 0 && event.character == 0) return;
-	sendKeyEvent (type, event);
-	if (type == SWT.KeyDown && (modifiers & OS.NSAlphaShiftKeyMask) != 0 && (lastModifiers & OS.NSAlphaShiftKeyMask) == 0) {
-		event = new Event ();
-		event.keyCode = SWT.CAPS_LOCK;
-//		setInputState (event, SWT.KeyUp, chord, modifiers);
-		sendKeyEvent (SWT.KeyUp, event);
-	}
-	display.lastModifiers = modifiers;
+	super.flagsChanged (id, sel, theEvent);
 }
 
 NSView focusView () {
@@ -1332,6 +1348,29 @@ int hitTest (int id, int sel, NSPoint point) {
 	return super.hitTest(id, sel, point);
 }
 
+boolean insertText (int id, int sel, int string) {
+	NSEvent nsEvent = NSApplication.sharedApplication ().currentEvent ();
+	if (nsEvent != null && nsEvent.type () == OS.NSKeyDown) {
+		NSString str = new NSString (string);
+		if (str.isKindOfClass (OS.objc_getClass ("NSAttributedString"))) {
+			str = new NSAttributedString (string).string ();
+		}
+		int length = str.length ();
+		char[] buffer = new char [length];
+		str.getCharacters_ (buffer);
+		for (int i = 0; i < buffer.length; i++) {
+			Event event = new Event ();
+			if (length == 1) setKeyState (event, SWT.KeyDown, nsEvent);
+			event.character = buffer [i];
+			sendKeyEvent (SWT.KeyDown, event);
+		}
+	}
+	if ((state & CANVAS) == 0) {
+		return super.insertText (id, sel, string);
+	}
+	return true;
+}
+
 /**	 
  * Invokes platform specific functionality to allocate a new GC handle.
  * <p>
@@ -1351,7 +1390,9 @@ public int internal_new_GC (GCData data) {
 	if (data != null && data.paintRect != null) {
 		context = NSGraphicsContext.currentContext().id;
 	} else {
-		context = NSGraphicsContext.graphicsContextWithWindow(view.window()).id;
+		NSGraphicsContext graphicsContext = NSGraphicsContext.graphicsContextWithWindow (view.window ());
+		display.addContext (graphicsContext);
+		context = graphicsContext.id;
 	}
 	if (data != null) {
 		int mask = SWT.LEFT_TO_RIGHT | SWT.RIGHT_TO_LEFT;
@@ -1359,6 +1400,7 @@ public int internal_new_GC (GCData data) {
 			data.style |= style & (mask | SWT.MIRRORED);
 		}
 		data.device = display;
+		data.thread = display.thread;
 		data.view = view;
 		data.foreground = getForegroundColor ().handle;
 		Control control = findBackgroundControl ();
@@ -1383,7 +1425,16 @@ public int internal_new_GC (GCData data) {
  * @param data the platform specific GC data 
  */
 public void internal_dispose_GC (int context, GCData data) {
-	checkWidget ();	
+	checkWidget ();
+	NSGraphicsContext graphicsContext = new NSGraphicsContext (context);
+	display.removeContext (graphicsContext);
+	if (data != null) {
+		if (data.paintRect != null) {
+			NSGraphicsContext.setCurrentContext (graphicsContext);
+		} else {
+			graphicsContext.flushGraphics ();
+		}
+	}
 }
 
 /**
@@ -1513,7 +1564,34 @@ public boolean isVisible () {
 	return getVisible () && parent.isVisible ();
 }
 
-int menuForEvent (int nsEvent) {
+void keyDown (int id, int sel, int theEvent) {
+	if (view.window ().firstResponder ().id == id) {
+		boolean textInput = OS.objc_msgSend (id, OS.sel_conformsToProtocol_1, OS.objc_getProtocol ("NSTextInput")) != 0;
+		if (!textInput) {
+			NSEvent nsEvent = new NSEvent (theEvent);
+			boolean [] consume = new boolean [1];
+			if (translateTraversal (nsEvent.keyCode (), nsEvent, consume)) return;
+			if (isDisposed ()) return;
+			if (!sendKeyEvent (nsEvent, SWT.KeyDown)) return;
+			if (consume [0]) return;
+		}
+	}
+	super.keyDown (id, sel, theEvent);
+}
+
+void keyUp (int id, int sel, int theEvent) {
+	if (view.window ().firstResponder ().id == id) {
+		NSEvent nsEvent = new NSEvent (theEvent);
+		if (!sendKeyEvent (nsEvent, SWT.KeyUp)) return;
+	}
+	super.keyUp (id, sel, theEvent);
+}
+
+void markLayout (boolean changed, boolean all) {
+	/* Do nothing */
+}
+
+int menuForEvent (int id, int sel, int theEvent) {
 	NSPoint pt = NSEvent.mouseLocation();
 	pt.y = (int) (display.getPrimaryFrame().height - pt.y);
 	int x = (int) pt.x;
@@ -1530,10 +1608,7 @@ int menuForEvent (int nsEvent) {
 		}
 		return menu.nsMenu.id;
 	}
-	objc_super super_struct = new objc_super();
-	super_struct.receiver = view.id;
-	super_struct.cls = OS.objc_msgSend(view.id, OS.sel_superclass);
-	return OS.objc_msgSendSuper(super_struct, OS.sel_menuForEvent_1, nsEvent);
+	return super.menuForEvent (id, sel, theEvent);
 }
 
 Decorations menuShell () {
@@ -1563,10 +1638,6 @@ void mouseDown(int id, int sel, int theEvent) {
 
 void moved () {
 	sendEvent (SWT.Move);
-}
-
-void markLayout (boolean changed, boolean all) {
-	/* Do nothing */
 }
 
 /**
@@ -2166,6 +2237,12 @@ void sendFocusEvent (int type, boolean post) {
 }
 
 boolean sendMouseEvent (NSEvent nsEvent, int type, boolean send) {
+	NSInputManager manager = NSInputManager.currentInputManager ();
+	if (manager != null && manager.wantsToHandleMouseEvents ()) {
+		if (manager.handleMouseEvent (nsEvent)) {
+			return true;
+		}
+	}
 	Shell shell = null;
 	Event event = new Event ();
 	switch (type) {
@@ -3053,7 +3130,7 @@ boolean translateTraversal (int key, NSEvent theEvent, boolean [] consume) {
 			break;
 		}
 		case 48: /* Tab */ {
-			int modifiers = display.lastModifiers;
+			int modifiers = theEvent.modifierFlags ();
 			boolean next = (modifiers & OS.NSShiftKeyMask) == 0;
 			detail = next ? SWT.TRAVERSE_TAB_NEXT : SWT.TRAVERSE_TAB_PREVIOUS;
 			break;
@@ -3069,10 +3146,9 @@ boolean translateTraversal (int key, NSEvent theEvent, boolean [] consume) {
 		case 116: /* Page up */
 		case 121: /* Page down */ {
 			all = true;
-//			int [] modifiers = new int [1];
-//			OS.GetEventParameter (theEvent, OS.kEventParamKeyModifiers, OS.typeUInt32, null, 4, null, modifiers);
-//			if ((modifiers [0] & OS.controlKey) == 0) return false;
-//			detail = key == 121 /* Page down */ ? SWT.TRAVERSE_PAGE_NEXT : SWT.TRAVERSE_PAGE_PREVIOUS;
+			int modifiers = theEvent.modifierFlags ();
+			if ((modifiers & OS.NSControlKeyMask) == 0) return false;
+			detail = key == 121 /* Page down */ ? SWT.TRAVERSE_PAGE_NEXT : SWT.TRAVERSE_PAGE_PREVIOUS;
 			break;
 		}
 		default:
@@ -3096,7 +3172,7 @@ boolean translateTraversal (int key, NSEvent theEvent, boolean [] consume) {
 }
 
 int traversalCode (int key, NSEvent theEvent) {
-	int code = SWT.TRAVERSE_RETURN | SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS;
+	int code = SWT.TRAVERSE_RETURN | SWT.TRAVERSE_TAB_NEXT | SWT.TRAVERSE_TAB_PREVIOUS | SWT.TRAVERSE_PAGE_NEXT | SWT.TRAVERSE_PAGE_PREVIOUS;
 	Shell shell = getShell ();
 	if (shell.parent != null) code |= SWT.TRAVERSE_ESCAPE;
 	return code;
@@ -3244,7 +3320,7 @@ public void update () {
 void update (boolean all) {
 //	checkWidget();
 	//TODO - not all
-//	OS.HIViewRender (handle);
+	view.displayIfNeeded ();
 }
 
 void updateBackgroundMode () {

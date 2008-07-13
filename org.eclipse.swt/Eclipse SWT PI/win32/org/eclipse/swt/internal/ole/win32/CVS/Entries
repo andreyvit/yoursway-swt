@@ -1,5 +1,5 @@
 /CAUUID.java/1.10/Sun May  4 09:53:37 2008//
-/COM.java/1.59/Sun Jun 22 09:18:41 2008//
+/COM.java/1.59/Sun Jul 13 07:54:47 2008//
 /CONTROLINFO.java/1.11/Sun May  4 09:53:37 2008//
 /COSERVERINFO.java/1.10/Sun May  4 09:53:37 2008//
 /DISPPARAMS.java/1.10/Sun May  4 09:53:37 2008//
@@ -13,7 +13,7 @@
 /IConnectionPoint.java/1.8/Sun May  4 09:53:37 2008//
 /IConnectionPointContainer.java/1.8/Sun May  4 09:53:37 2008//
 /IDataObject.java/1.8/Sun May  4 09:53:37 2008//
-/IDispatch.java/1.11/Sun Jun 22 09:19:40 2008//
+/IDispatch.java/1.11/Sun Jul 13 07:54:47 2008//
 /IDragSourceHelper.java/1.1/Sun May  4 09:53:37 2008//
 /IDragSourceHelper2.java/1.1/Sun May  4 09:53:37 2008//
 /IDropTargetHelper.java/1.1/Sun May  4 09:53:37 2008//
@@ -50,6 +50,6 @@
 /STATSTG.java/1.10/Sun May  4 09:53:37 2008//
 /STGMEDIUM.java/1.10/Sun May  4 09:53:37 2008//
 /TYPEATTR.java/1.11/Sun May  4 09:53:37 2008//
-/VARDESC.java/1.6/Sun Jun 22 09:19:28 2008//
-/VARIANT.java/1.4/Sun Jun 22 09:18:47 2008//
+/VARDESC.java/1.6/Sun Jul 13 07:54:47 2008//
+/VARIANT.java/1.4/Sun Jul 13 07:54:47 2008//
 /package.html/1.5/Sun May  4 09:53:37 2008//

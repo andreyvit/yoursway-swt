@@ -45,7 +45,7 @@ import org.eclipse.swt.accessibility.*;
  * @see <a href="http://www.eclipse.org/swt/examples.php">SWT Example: CustomControlExample</a>
  * @see <a href="http://www.eclipse.org/swt/">Sample code and further information</a>
  */
-public final class CCombo extends Composite {
+public class CCombo extends Composite {
 
 	Text text;
 	List list;
@@ -57,6 +57,8 @@ public final class CCombo extends Composite {
 	Color foreground, background;
 	Font font;
 	
+	static final String PACKAGE_PREFIX = "org.eclipse.swt.custom."; //$NON-NLS-1$
+
 /**
  * Constructs a new instance of this class given its parent
  * and a style value describing its behavior and appearance.
@@ -319,6 +321,13 @@ void arrowEvent (Event event) {
 		}
 	}
 }
+protected void checkSubclass () {
+	String name = getClass ().getName ();
+	int index = name.lastIndexOf ('.');
+	if (!name.substring (0, index + 1).equals (PACKAGE_PREFIX)) {
+		SWT.error (SWT.ERROR_INVALID_SUBCLASS);
+	}
+}
 /**
  * Sets the selection in the receiver's text field to an empty
  * selection starting just before the first character. If the
@@ -494,7 +503,7 @@ public void deselectAll () {
 	list.deselectAll ();
 }
 void dropDown (boolean drop) {
-	if (drop == isDropped () || !isVisible()) return;
+	if (drop == isDropped ()) return;
 	if (!drop) {
 		popup.setVisible (false);
 		if (!isDisposed () && isFocusControl()) {
@@ -502,7 +511,7 @@ void dropDown (boolean drop) {
 		}
 		return;
 	}
-
+	if (!isVisible()) return;
 	if (getShell() != popup.getParent ()) {
 		String[] items = list.getItems ();
 		int selectionIndex = list.getSelectionIndex ();

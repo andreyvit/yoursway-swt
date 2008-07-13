@@ -1470,10 +1470,18 @@ public void setImeInputMode (int mode) {
 
 void setInitialBounds () {
 	if ((state & FOREIGN_HANDLE) != 0) return;
-	Monitor monitor = getMonitor ();
-	Rectangle rect = monitor.getClientArea ();
-	int width = rect.width * 5 / 8;
-	int height = rect.height * 5 / 8;
+	int width = OS.gdk_screen_width () * 5 / 8;
+	int height = OS.gdk_screen_height () * 5 / 8;
+	int /*long*/ screen = OS.gdk_screen_get_default ();
+	if (screen != 0) {
+		if (OS.gdk_screen_get_n_monitors (screen) > 1) {
+			int monitorNumber = OS.gdk_screen_get_monitor_at_window (screen, paintWindow ());
+			GdkRectangle dest = new GdkRectangle ();
+			OS.gdk_screen_get_monitor_geometry (screen, monitorNumber, dest);
+			width = dest.width * 5 / 8;
+			height = dest.height * 5 / 8;
+		}
+	}
 	if ((style & SWT.RESIZE) != 0) {
 		OS.gtk_window_resize (shellHandle, width, height);
 	}
@@ -1988,7 +1996,7 @@ void setToolTipText (int /*long*/ rootWidget, int /*long*/ tipWidget, String str
 			int [] x = new int [1], y = new int [1];
 			int /*long*/ window = OS.gdk_window_at_pointer (x, y);
 			int /*long*/ [] user_data = new int /*long*/ [1];
-			OS.gdk_window_get_user_data (window, user_data);
+			if (window != 0) OS.gdk_window_get_user_data (window, user_data);
 			if (tipWidget == user_data [0]) {
 				eventPtr = OS.gdk_event_new (OS.GDK_MOTION_NOTIFY);
 				GdkEventMotion event = new GdkEventMotion ();

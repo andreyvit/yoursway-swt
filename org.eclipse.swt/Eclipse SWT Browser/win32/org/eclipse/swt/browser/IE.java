@@ -295,10 +295,10 @@ public void create(Composite parent, int style) {
 						* Bug in IE.  For navigations on the local machine, BeforeNavigate2's url
 						* field contains a string representing the file path in a non-URL format.
 						* In order to be consistent with the other Browser implementations, this
-						* case is detected and the file protocol is prepended to the url string.
+						* case is detected and the string is changed to be a proper url string.
 						*/
 						if (url.indexOf(":/") == -1 && url.indexOf(":\\") != -1) { //$NON-NLS-1$ //$NON-NLS-2$
-							url = PROTOCOL_FILE + url;
+							url = PROTOCOL_FILE + url.replace('\\', '/');
 						}
 						LocationEvent newEvent = new LocationEvent(browser);
 						newEvent.display = browser.getDisplay();
@@ -353,10 +353,10 @@ public void create(Composite parent, int style) {
 						* Bug in IE.  For navigations on the local machine, DocumentComplete's URL
 						* field contains a string representing the file path in a non-URL format.
 						* In order to be consistent with the other Browser implementations, this
-						* case is detected and the file protocol is prepended to the url string.
+						* case is detected and the string is changed to be a proper url string.
 						*/
 						if (url.indexOf(":/") == -1 && url.indexOf(":\\") != -1) { //$NON-NLS-1$ //$NON-NLS-2$
-							url = PROTOCOL_FILE + url;
+							url = PROTOCOL_FILE + url.replace('\\', '/');
 						}
 						if (html != null && url.equals(ABOUT_BLANK)) {
 							Runnable runnable = new Runnable () {
@@ -756,6 +756,10 @@ public boolean forward() {
 	int[] rgdispid = auto.getIDsOfNames(new String[] { "GoForward" }); //$NON-NLS-1$
 	Variant pVarResult = auto.invoke(rgdispid[0]);
 	return pVarResult != null && pVarResult.getType() == OLE.VT_EMPTY;
+}
+
+public String getBrowserType () {
+	return "ie"; //$NON-NLS-1$
 }
 
 public String getText() {
