@@ -499,6 +499,7 @@ void createHandle () {
 			window.setLevel(OS.NSFloatingWindowLevel);
 		}
 		super.createHandle ();
+		topView ().setHidden (true);
 	}
 	window.setAcceptsMouseMovedEvents(true);
 	windowDelegate = (SWTWindowDelegate)new SWTWindowDelegate().alloc().init();
@@ -526,7 +527,7 @@ void destroyWidget () {
 	}
 }
 
-void drawRect(int id, NSRect rect) {
+void drawWidget (int id, NSRect rect) {
 	if (regionPath != null && background == null) {
 		NSGraphicsContext context = NSGraphicsContext.currentContext();
 		context.saveGraphicsState();
@@ -534,7 +535,7 @@ void drawRect(int id, NSRect rect) {
 		NSBezierPath.fillRect(rect);
 		context.restoreGraphicsState();
 	}
-	super.drawRect(id, rect);
+	super.drawWidget (id, rect);
 }
 
 Control findBackgroundControl () {
@@ -621,6 +622,10 @@ public Rectangle getClientArea () {
 		height = (int)size.height;
 	}
 	return new Rectangle (0, 0, width, height);
+}
+
+NSBezierPath getClipping() {
+	return regionPath;
 }
 
 /**
@@ -1316,6 +1321,7 @@ void setWindowVisible (boolean visible, boolean key) {
 	if (visible) {
 		sendEvent (SWT.Show);
 		if (isDisposed ()) return;
+		topView ().setHidden (false);
 		if (key) {
 			window.makeKeyAndOrderFront (null);
 		} else {
@@ -1338,6 +1344,7 @@ void setWindowVisible (boolean visible, boolean key) {
 		}
 	} else {
 		window.orderOut (null);
+		topView ().setHidden (true);
 		sendEvent (SWT.Hide);
 	}
 }

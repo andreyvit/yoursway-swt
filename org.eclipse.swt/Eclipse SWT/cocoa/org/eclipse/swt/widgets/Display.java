@@ -1638,7 +1638,7 @@ void initApplicationDelegate() {
 	application.setDelegate(applicationDelegate);
 }
 
-void addEventMethods (int cls, int proc2, int proc3) {
+void addEventMethods (int cls, int proc2, int proc3, int drawRectProc) {
 	OS.class_addMethod(cls, OS.sel_mouseDown_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_mouseUp_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_scrollWheel_1, proc3, "@:@");
@@ -1656,6 +1656,7 @@ void addEventMethods (int cls, int proc2, int proc3) {
 	OS.class_addMethod(cls, OS.sel_keyDown_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_keyUp_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_flagsChanged_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:{NSRect}");
 }
 
 void addFrameMethods(int cls, int setFrameOriginProc, int setFrameSizeProc) {
@@ -1694,7 +1695,8 @@ void initClasses () {
 	int attributedSubstringFromRangeProc = OS.attributedSubstringFromRange_CALLBACK(proc3);
 	int characterIndexForPointProc = OS.characterIndexForPoint_CALLBACK(proc3);
 	int firstRectForCharacterRangeProc = OS.firstRectForCharacterRange_CALLBACK(proc3);	
-	
+	int textWillChangeSelectionProc = OS.textView_willChangeSelectionFromCharacterRange_toCharacterRange_CALLBACK(proc5);
+
 	String className = "SWTWindowDelegate";
 	int cls = OS.objc_allocateClassPair(OS.class_NSObject, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
@@ -1729,7 +1731,6 @@ void initClasses () {
 	OS.class_addProtocol(cls, OS.objc_getProtocol("NSTextInput"));
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_isFlipped, proc2, "@:");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
 	OS.class_addMethod(cls, OS.sel_acceptsFirstResponder, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_isOpaque, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_hitTest_1, hitTestProc, "@:{NSPoint}");
@@ -1747,7 +1748,7 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_firstRectForCharacterRange_1, firstRectForCharacterRangeProc, "@:{NSRange}");
 	OS.class_addMethod(cls, OS.sel_doCommandBySelector_1, proc3, "@::");
 	
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
@@ -1758,17 +1759,16 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_sendHorizontalSelection, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_pageDown_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_pageUp_1, proc3, "@:@");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTButton";
 	cls = OS.objc_allocateClassPair(OS.class_NSButton, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
 	OS.class_addMethod(cls, OS.sel_sendArrowSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
@@ -1782,7 +1782,7 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_tableViewSelectionDidChange_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_tableView_1willDisplayCell_1forTableColumn_1row_1, proc6, "@:@@@i");
 	OS.class_addMethod(cls, OS.sel_tableView_1setObjectValue_1forTableColumn_1row_1, proc6, "@:@@@i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
@@ -1799,7 +1799,7 @@ void initClasses () {
 	OS.class_addMethod(cls, OS.sel_outlineView_1objectValueForTableColumn_1byItem_1, proc5, "@:@@@");
 	OS.class_addMethod(cls, OS.sel_outlineView_1willDisplayCell_1forTableColumn_1item_1, proc6, "@:@@@@");
 	OS.class_addMethod(cls, OS.sel_outlineView_1setObjectValue_1forTableColumn_1byItem_1, proc6, "@:@@@@");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
@@ -1812,28 +1812,28 @@ void initClasses () {
 	cls = OS.objc_allocateClassPair(OS.class_NSTabView, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_tabView_1willSelectTabViewItem_1, proc4, "@:@@");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTBox";
 	cls = OS.objc_allocateClassPair(OS.class_NSBox, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTProgressIndicator";
 	cls = OS.objc_allocateClassPair(OS.class_NSProgressIndicator, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls); 
 
 	className = "SWTSlider";
 	cls = OS.objc_allocateClassPair(OS.class_NSSlider, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls); 
 	
@@ -1841,7 +1841,7 @@ void initClasses () {
 	cls = OS.objc_allocateClassPair(OS.class_NSPopUpButton, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
@@ -1850,7 +1850,9 @@ void initClasses () {
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_comboBoxSelectionDidChange_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	OS.class_addMethod(cls, OS.sel_textViewDidChangeSelection_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_textView_1willChangeSelectionFromCharacterRange_1toCharacterRange_1, textWillChangeSelectionProc, "@:@{NSRange}{NSRange}");
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 	
@@ -1858,15 +1860,14 @@ void initClasses () {
 	cls = OS.objc_allocateClassPair(OS.class_NSDatePicker, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
 	className = "SWTImageView";
 	cls = OS.objc_allocateClassPair(OS.class_NSImageView, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, OS.drawRect_CALLBACK(proc3), "@:i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
@@ -1874,7 +1875,7 @@ void initClasses () {
 	cls = OS.objc_allocateClassPair(OS.class_NSStepper, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
@@ -1882,7 +1883,7 @@ void initClasses () {
 	cls = OS.objc_allocateClassPair(OS.class_NSScroller, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
 	OS.class_addMethod(cls, OS.sel_sendSelection, proc2, "@:");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.objc_registerClassPair(cls);
 
@@ -1895,7 +1896,7 @@ void initClasses () {
 	className = "SWTTextView";
 	cls = OS.objc_allocateClassPair(OS.class_NSTextView, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
 	OS.class_addMethod(cls, OS.sel_insertText_1, proc3, "@:@");
 	OS.class_addMethod(cls, OS.sel_doCommandBySelector_1, proc3, "@::");
@@ -1913,25 +1914,28 @@ void initClasses () {
 	className = "SWTTextField";
 	cls = OS.objc_allocateClassPair(OS.class_NSTextField, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
+	OS.class_addMethod(cls, OS.sel_textViewDidChangeSelection_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_textView_1willChangeSelectionFromCharacterRange_1toCharacterRange_1, textWillChangeSelectionProc, "@:@{NSRange}{NSRange}");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTSearchField";
 	cls = OS.objc_allocateClassPair(OS.class_NSSearchField, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
+	OS.class_addMethod(cls, OS.sel_textViewDidChangeSelection_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_textView_1willChangeSelectionFromCharacterRange_1toCharacterRange_1, textWillChangeSelectionProc, "@:@{NSRange}{NSRange}");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTSecureTextField";
 	cls = OS.objc_allocateClassPair(OS.class_NSSecureTextField, className, 0);
 	OS.class_addIvar(cls, SWT_OBJECT, OS.PTR_SIZEOF, (byte)(Math.log(OS.PTR_SIZEOF) / Math.log(2)), "i");
-	OS.class_addMethod(cls, OS.sel_drawRect_1, drawRectProc, "@:i");
-	addEventMethods(cls, proc2, proc3);
+	addEventMethods(cls, proc2, proc3, drawRectProc);
 	addFrameMethods(cls, setFrameOriginProc, setFrameSizeProc);
+	OS.class_addMethod(cls, OS.sel_textViewDidChangeSelection_1, proc3, "@:@");
+	OS.class_addMethod(cls, OS.sel_textView_1willChangeSelectionFromCharacterRange_1toCharacterRange_1, textWillChangeSelectionProc, "@:@{NSRange}{NSRange}");
 	OS.objc_registerClassPair(cls);
 	
 	className = "SWTWindow";
@@ -3514,16 +3518,7 @@ int windowDelegateProc(int id, int sel, int arg0) {
 	} else if (sel == OS.sel_drawRect_1) {
 		NSRect rect = new NSRect();
 		OS.memmove(rect, arg0, NSRect.sizeof);
-		Shell shell = (Shell)getWidget(new NSView(id).window().contentView());
-		NSBezierPath path = shell != null ? shell.regionPath : null;
-		if (path != null) {
-			NSGraphicsContext.static_saveGraphicsState();
-			path.addClip();
-		}
 		widget.drawRect(id, rect);
-		if (path != null) {
-			NSGraphicsContext.static_restoreGraphicsState();
-		}
 	} else if (sel == OS.sel_setFrameOrigin_1) {
 		NSPoint point = new NSPoint();
 		OS.memmove(point, arg0, NSPoint.sizeof);
@@ -3598,6 +3593,8 @@ int windowDelegateProc(int id, int sel, int arg0) {
 		widget.pageDown(id, sel, arg0);
 	} else if (sel == OS.sel_pageUp_1) {
 		widget.pageUp(id, sel, arg0);
+	} else if (sel == OS.sel_textViewDidChangeSelection_1) {
+		widget.textViewDidChangeSelection(arg0);
 	} else if (sel == OS.sel_attributedSubstringFromRange_1) {
 		return widget.attributedSubstringFromRange (id, sel, arg0);
 	} else if (sel == OS.sel_characterIndexForPoint_1) {
@@ -3651,6 +3648,12 @@ int windowDelegateProc(int delegate, int sel, int arg0, int arg1, int arg2) {
 		 return widget.outlineView_child_ofItem(arg0, arg1, arg2);
 	} else if (sel == OS.sel_outlineView_1objectValueForTableColumn_1byItem_1) {
 		 return widget.outlineView_objectValueForTableColumn_byItem(arg0, arg1, arg2);
+	} else if (sel == OS.sel_textView_1willChangeSelectionFromCharacterRange_1toCharacterRange_1) {
+		NSRange range = widget.textView_willChangeSelectionFromCharacterRange_toCharacterRange(arg0, arg1, arg2);
+		/* NOTE that this is freed in C */
+		int /*long*/ result = OS.malloc (NSRange.sizeof);
+		OS.memmove (result, range, NSRange.sizeof);
+		return result;
 	}
 	return 0;
 }

@@ -129,6 +129,10 @@ public Widget (Widget parent, int style) {
 	display = parent.display;
 }
 
+NSBezierPath getClipping () {
+	return null;
+}
+
 int attributedSubstringFromRange (int id, int sel, int range) {
 	return 0;
 }
@@ -395,14 +399,25 @@ void drawBackground (int control, int context) {
 	/* Do nothing */
 }
 
-void drawRect(int id, NSRect rect) {
+void drawRect (int id, NSRect rect) {
+	//TODO offset region to view coordinates
+	//TODO use region from control as well shell region
+	NSBezierPath path = getClipping ();
+	if (path != null) {
+		NSGraphicsContext.static_saveGraphicsState();
+		path.addClip ();
+	}
 	objc_super super_struct = new objc_super();
 	super_struct.receiver = id;
 	super_struct.cls = OS.objc_msgSend(id, OS.sel_superclass);
 	OS.objc_msgSendSuper(super_struct, OS.sel_drawRect_1, rect);
+	drawWidget (id, rect);
+	if (path != null) {
+		NSGraphicsContext.static_restoreGraphicsState();
+	}
 }
 
-void drawWidget (int control, int context, int damageRgn, int visibleRgn, int theEvent) {
+void drawWidget (int id, NSRect rect) {
 }
 
 void error (int code) {
@@ -1240,6 +1255,13 @@ boolean tableView_shouldEditTableColumn_row(int aTableView, int aTableColumn, in
 }
 
 void tableView_willDisplayCell_forTableColumn_row(int aTableView, int aCell, int aTableColumn, int rowIndex) {
+}
+
+void textViewDidChangeSelection(int aNotification) {
+}
+
+NSRange textView_willChangeSelectionFromCharacterRange_toCharacterRange(int aTextView, int oldSelectedCharRange, int newSelectedCharRange) {
+	return new NSRange();
 }
 
 /**
